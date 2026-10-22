@@ -1,77 +1,224 @@
 
-"Temporary WBGT simulator. Never changes real forecasts or attendance"
+"Simulate a session with sliders. Never changes real forecasts or attendance"
 "ASSISTED BY AI"
 
 from datetime import date
-import math
 
 import flet as ft
 
 from core.acclim import Person, worker_plan, athlete_plan
-from core.rules import get_category
+from core.rules import get_category, load_rules
+from views.peak_chart import LINE_COLORS, ORDER
+
+DARK = "#172033"
+MUTED = "#64748B"
+
+#readable text colors for each WBGT category
+TEXT_COLORS = {
+    "green": "#15803D",
+    "yellow": "#A16207",
+    "orange": "#C2410C",
+    "red": "#B91C1C",
+    "black": "#0F172A"
+}
+
+WBGT_MIN, WBGT_MAX = 60, 100
+
+REGIONS = [(1, "Cooler"), (2, "Moderate"), (3, "Warmer")]
+REGION_COLORS = ["#60A5FA", "#FBBF24", "#F97316"]
+
+ROLES = [("athlete", "Athlete"), ("worker", "Worker")]
+
+#OSHA/NIOSH workload levels
+INTENSITY = [
+    ("light", "Light"),
+    ("moderate", "Moderate"),
+    ("heavy", "Heavy"),
+    ("very_heavy", "Very heavy")
+]
+INTENSITY_COLORS = ["#16A34A", "#EAB308", "#EA580C", "#DC2626"]
+
+#space between the slider ends and the edge of the colored bar
+TRACK_INSET = 12
+
+
+def side_gradient(colors, stops=None):
+    return ft.LinearGradient(
+        begin=ft.Alignment.CENTER_LEFT,
+        end=ft.Alignment.CENTER_RIGHT,
+        colors=colors,
+        stops=stops
+    )
+
+
+def wbgt_gradient(region):
+    "hard color bands at the region's category cutoffs"
+
+    minimums = load_rules()["sports"]["regions"][str(region)]["minimums"]
+    edges = [WBGT_MIN] + [minimums[name] for name in ORDER[1:]] + [WBGT_MAX]
+
+    colors, stops = [], []
+
+    for index, name in enumerate(ORDER):
+        start = (edges[index] - WBGT_MIN) / (WBGT_MAX - WBGT_MIN)
+        end = (edges[index + 1] - WBGT_MIN) / (WBGT_MAX - WBGT_MIN)
+
+        colors += [LINE_COLORS[name]] * 2
+        stops += [start, end]
+
+    return side_gradient(colors, stops)
+
+
+def slider_block(title, slider, ticks, gradient=None):
+    "title and value, the slider over a colored bar, and labels under it"
+
+    value = ft.Text("", size=14, weight=ft.FontWeight.BOLD, color=DARK)
+
+    bar = ft.Container(
+        height=10,
+        border_radius=5,
+        margin=ft.Margin.symmetric(horizontal=TRACK_INSET),
+        bgcolor="#E2E8F0" if gradient is None else None,
+        gradient=gradient
+    )
+
+    #the bar shows through the see-through track
+    slider.active_color = ft.Colors.TRANSPARENT
+    slider.inactive_color = ft.Colors.TRANSPARENT
+    slider.thumb_color = "#FFFFFF"
+    slider.year_2023 = True
+    slider.padding = ft.Padding.symmetric(horizontal=TRACK_INSET)
+
+    block = ft.Column(
+        controls=[
+            ft.Row(
+                controls=[
+                    ft.Text(title, size=14, color=MUTED),
+                    value
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+            ),
+            ft.Stack(
+                controls=[bar, slider],
+                alignment=ft.Alignment.CENTER
+            ),
+            ft.Container(
+                padding=ft.Padding.symmetric(horizontal=TRACK_INSET - 6),
+                content=ft.Row(
+                    controls=[
+                        ft.Text(tick, size=11, color=MUTED)
+                        for tick in ticks
+                    ],
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                )
+            )
+        ],
+        spacing=4,
+        horizontal_alignment=ft.CrossAxisAlignment.STRETCH
+    )
+
+    return block, value, bar
 
 
 def build_developer_mode(page, settings, profile):
 
     #hidden until enabled
-    enabled = ft.Switch(
-        label="Developer mode (simulation only)",
-        value=False
+    enabled = ft.Switch(value=False)
+
+    header = ft.Row(
+        controls=[
+            ft.Text(
+                "Simulate a Session",
+                size=19,
+                weight=ft.FontWeight.BOLD,
+                color=DARK
+            ),
+            enabled
+        ],
+        alignment=ft.MainAxisAlignment.SPACE_BETWEEN
     )
 
-    wbgt = ft.TextField(
-        label="SIMULATED WBGT (°F)",
-        value="95"
+    wbgt = ft.Slider(min=WBGT_MIN, max=WBGT_MAX, divisions=WBGT_MAX - WBGT_MIN, value=95)
+    region = ft.Slider(min=1, max=3, divisions=2, value=settings["region"])
+    role = ft.Slider(min=0, max=1, divisions=1, value=0)
+    intensity = ft.Slider(min=0, max=3, divisions=3, value=1)
+
+    wbgt_block, wbgt_value, wbgt_bar = slider_block(
+        "SIMULATED WBGT",
+        wbgt,
+        ["60°", "70°", "80°", "90°", "100°"],
+        wbgt_gradient(settings["region"])
     )
 
-    region = ft.Dropdown(
-        label="SIMULATED region",
-        value=str(settings["region"]),
-        options=[
-            ft.DropdownOption(key=str(i), text=f"Region {i}")
-            for i in (1, 2, 3)
-        ]
+    region_block, region_value, _ = slider_block(
+        "SIMULATED region",
+        region,
+        [f"{number} {name}" for number, name in REGIONS],
+        side_gradient(REGION_COLORS)
     )
 
-    role = ft.Dropdown(
-        label="SIMULATED role",
-        value="athlete",
-        options=[
-            ft.DropdownOption(key="worker", text="Worker"),
-            ft.DropdownOption(key="athlete", text="Athlete")
-        ]
+    role_block, role_value, _ = slider_block(
+        "SIMULATED role",
+        role,
+        [name for _, name in ROLES]
+    )
+
+    intensity_block, intensity_value, _ = slider_block(
+        "SIMULATED intensity",
+        intensity,
+        [name for _, name in INTENSITY],
+        side_gradient(INTENSITY_COLORS)
     )
 
     result = ft.Text(
         "SIMULATED — no real records will change.",
         selectable=True
     )
+
+    def chosen():
+        region_number = int(round(region.value))
+        role_key = ROLES[int(round(role.value))][0]
+        workload, intensity_label = INTENSITY[int(round(intensity.value))]
+
+        return float(wbgt.value), region_number, role_key, workload, intensity_label
+
+    #show what each slider is set to
+    def show_values():
+        value, region_number, role_key, _, intensity_label = chosen()
+        category = get_category(value, f"sports_{region_number}", unit="F")["category"]
+
+        wbgt_value.value = f"{value:.0f} °F · {category.title()}"
+        wbgt_value.color = TEXT_COLORS[category]
+        wbgt_bar.gradient = wbgt_gradient(region_number)
+
+        region_value.value = f"Region {region_number} · {REGIONS[region_number - 1][1]}"
+        role_value.value = dict(ROLES)[role_key]
+        intensity_value.value = intensity_label
+
     #calculate using existing rules
     def calculate(_event=None):
 
         try:
-            value = float((wbgt.value or "").strip())
-
-            if not math.isfinite(value) or not -20 <= value <= 160:
-                raise ValueError()
-
+            value, region_number, role_key, workload, intensity_label = chosen()
             celsius = (value - 32) * 5 / 9
 
             #empty attendance keeps the simulation separate
-            person = Person("Simulation", role.value, False, [])
+            person = Person("Simulation", role_key, False, [])
 
-            if role.value == "athlete":
+            exertion_line = ""
+
+            if role_key == "athlete":
 
                 category = get_category(
                     celsius,
-                    f"sports_{region.value}"
+                    f"sports_{region_number}"
                 )
 
                 plan = athlete_plan(
                     person,
                     date.today(),
                     wbgt_c=celsius,
-                    sports_region=int(region.value)
+                    sports_region=region_number
                 )
 
                 if plan["rest_required"]:
@@ -84,12 +231,24 @@ def build_developer_mode(page, settings, profile):
                         f"up to {plan['max_total_practice_minutes']} minutes"
                     )
 
+                #intensity uses the OSHA/NIOSH workload table
+                exertion = get_category(
+                    celsius,
+                    f"workers_{workload}_unacclimatized"
+                )
+
+                exertion_line = (
+                    f"SIMULATED exertion check ({intensity_label}, "
+                    f"OSHA/NIOSH workload table): {exertion['label']}\n"
+                )
+
             else:
                 plan = worker_plan(
                     person,
                     date.today(),
                     profile["normal_minutes"],
-                    wbgt_c=celsius
+                    wbgt_c=celsius,
+                    workload=workload
                 )
 
                 category = plan["screening"]
@@ -100,20 +259,29 @@ def build_developer_mode(page, settings, profile):
                 )
 
             result.value = (
-                f"SIMULATED WBGT: {value:.1f} °F\n"
+                f"SIMULATED WBGT: {value:.0f} °F\n"
+                f"SIMULATED intensity: {intensity_label}\n"
                 f"SIMULATED risk: {category['label']}\n"
                 f"SIMULATED guidance: {category['guidance']}\n"
+                f"{exertion_line}"
                 f"SIMULATED limit: {limit}\n"
                 "Not live weather or a real attendance record."
             )
 
         except (ValueError, TypeError, KeyError):
-            result.value = (
-                "SIMULATED — enter a valid WBGT "
-                "from -20 to 160 °F."
-            )
+            result.value = "SIMULATED — could not run this simulation."
 
         page.update()
+
+    def slide(_event=None):
+        show_values()
+        page.update()
+
+    for slider in (wbgt, region, role, intensity):
+        slider.on_change = slide
+        slider.on_change_end = calculate
+
+    show_values()
 
     #simulation panel
     panel = ft.Column(
@@ -123,16 +291,22 @@ def build_developer_mode(page, settings, profile):
                 size=17,
                 weight=ft.FontWeight.BOLD
             ),
-            wbgt,
-            region,
-            role,
-            ft.Button(
-                content="Run simulation",
-                on_click=calculate
+            wbgt_block,
+            region_block,
+            role_block,
+            intensity_block,
+            ft.Row(
+                controls=[
+                    ft.Button(
+                        content="Run simulation",
+                        on_click=calculate
+                    )
+                ]
             ),
             result
         ],
-        spacing=10,
+        spacing=14,
+        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         visible=False
     )
 
@@ -142,4 +316,4 @@ def build_developer_mode(page, settings, profile):
 
     enabled.on_change = toggle
 
-    return enabled, panel
+    return header, panel

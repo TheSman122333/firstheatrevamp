@@ -37,9 +37,12 @@ async def main(page: ft.Page):
         await save_person(prefs, changes)
         person.update(changes)
 
+    #simulate a session panel for Home
+    simulator = build_developer_mode(page, settings, person)
+
     #build all screens
     home, refresh_home = build_home(
-        page, settings, lambda e: go(3)
+        page, settings, lambda e: go(3), simulator
     )
     weekly, refresh_weekly = build_plan(page, settings)
     my_plan, refresh_my_plan = build_my_plan(
@@ -48,17 +51,6 @@ async def main(page: ft.Page):
 
     emergency = build_emergency(page, settings)
     settings_screen = build_settings(page, settings, update_settings)
-
-    #add developer mode to Home
-    toggle, simulator = build_developer_mode(
-        page, settings, person
-    )
-
-    home.content.controls.extend([
-        ft.Divider(),
-        toggle,
-        simulator
-    ])
 
     screens = [
         home,

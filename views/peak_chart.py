@@ -27,9 +27,9 @@ LINE_COLORS = {
 
 MUTED = "#64748B"
 
-#drawing area inside the SVG
-WIDTH, HEIGHT = 320, 214
-LEFT, RIGHT, TOP, BOTTOM = 30, 304, 30, 184
+#drawing area inside the SVG, about one inch tall on screen
+WIDTH, HEIGHT = 320, 100
+LEFT, RIGHT, TOP, BOTTOM = 28, 306, 18, 80
 
 
 def to_f(celsius):
@@ -95,12 +95,12 @@ def build_peak_chart(hourly, thresholds_f, now=None):
     values = [value for _, value, _ in points]
 
     #pad the range so the curve never touches the edges
-    low = min(values) - 3
-    high = max(values) + 3
+    low = min(values) - 2
+    high = max(values) + 2
 
-    if high - low < 12:
+    if high - low < 10:
         middle = (high + low) / 2
-        low, high = middle - 6, middle + 6
+        low, high = middle - 5, middle + 5
 
     low, high = floor(low), ceil(high)
 
@@ -144,7 +144,7 @@ def build_peak_chart(hourly, thresholds_f, now=None):
             f'stroke="#FFFFFF" stroke-width="1"/>'
         )
         shapes.append(
-            f'<text x="{x:.1f}" y="{BOTTOM + 17}" font-size="10" '
+            f'<text x="{x:.1f}" y="{BOTTOM + 13}" font-size="9" '
             f'text-anchor="middle" fill="{MUTED}">{hour_label(hour)}</text>'
         )
 
@@ -157,12 +157,12 @@ def build_peak_chart(hourly, thresholds_f, now=None):
     for value in sorted(labels, key=lambda v: v in (low, high)):
         y = y_at(value)
 
-        if any(abs(y - other) < 12 for other in placed):
+        if any(abs(y - other) < 10 for other in placed):
             continue
 
         placed.append(y)
         shapes.append(
-            f'<text x="{LEFT - 4}" y="{y + 3.5:.1f}" font-size="10" '
+            f'<text x="{LEFT - 3}" y="{y + 3:.1f}" font-size="9" '
             f'text-anchor="end" fill="{MUTED}">{value:.0f}°</text>'
         )
 
@@ -179,13 +179,13 @@ def build_peak_chart(hourly, thresholds_f, now=None):
 
     shapes.append(
         f'<path d="{curve}" fill="none" stroke="url(#heat)" '
-        f'stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>'
+        f'stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
     )
 
     for (x, y), (_, _, name) in zip(coords, points):
         shapes.append(
-            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" fill="{LINE_COLORS[name]}" '
-            f'stroke="#FFFFFF" stroke-width="1.5"/>'
+            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2.2" fill="{LINE_COLORS[name]}" '
+            f'stroke="#FFFFFF" stroke-width="1"/>'
         )
 
     #current time marker
@@ -200,7 +200,7 @@ def build_peak_chart(hourly, thresholds_f, now=None):
                 f'stroke="#334155" stroke-width="1.2" stroke-dasharray="4 3"/>'
             )
             shapes.append(
-                f'<text x="{x + 4:.1f}" y="{BOTTOM - 5}" font-size="10" '
+                f'<text x="{x + 3:.1f}" y="{BOTTOM - 3}" font-size="8.5" '
                 f'fill="#334155">Now</text>'
             )
 
@@ -208,14 +208,14 @@ def build_peak_chart(hourly, thresholds_f, now=None):
     peak_index = max(range(len(points)), key=lambda i: points[i][1])
     peak_hour, peak_value, peak_name = points[peak_index]
     peak_x, peak_y = coords[peak_index]
-    label_x = min(max(peak_x, LEFT + 52), RIGHT - 52)
+    label_x = min(max(peak_x, LEFT + 46), RIGHT - 46)
 
     shapes.append(
-        f'<circle cx="{peak_x:.1f}" cy="{peak_y:.1f}" r="6" '
-        f'fill="{LINE_COLORS[peak_name]}" stroke="#FFFFFF" stroke-width="2"/>'
+        f'<circle cx="{peak_x:.1f}" cy="{peak_y:.1f}" r="4.5" '
+        f'fill="{LINE_COLORS[peak_name]}" stroke="#FFFFFF" stroke-width="1.5"/>'
     )
     shapes.append(
-        f'<text x="{label_x:.1f}" y="{peak_y - 12:.1f}" font-size="12" '
+        f'<text x="{label_x:.1f}" y="{max(peak_y - 8, 10):.1f}" font-size="10" '
         f'font-weight="bold" text-anchor="middle" fill="{LINE_COLORS[peak_name]}">'
         f'Peak {peak_value:.1f}°F · {hour_label(peak_hour)}</text>'
     )

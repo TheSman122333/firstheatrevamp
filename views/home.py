@@ -54,7 +54,7 @@ def activity_art(level):
     return svg.replace("currentColor", accent).encode(), label
 
 
-def build_home(page, settings, on_emergency):
+def build_home(page, settings, on_emergency, simulator=()):
 
     emergency_button = ft.Button(
         content="Emergency help — CALL 911 instructions",
@@ -181,6 +181,7 @@ def build_home(page, settings, on_emergency):
     peak_chart = ft.Image(
         src=b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>',
         fit=ft.BoxFit.CONTAIN,
+        height=96,
         visible=False
     )
 
@@ -232,6 +233,19 @@ def build_home(page, settings, on_emergency):
                 peak_chart,
                 legend
             ],
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH
+        )
+    )
+
+    #simulate a session, right under the chart
+    simulator_card = ft.Container(
+        bgcolor="#FFFFFF",
+        border_radius=20,
+        padding=22,
+        visible=bool(simulator),
+        content=ft.Column(
+            controls=list(simulator),
+            spacing=12,
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH
         )
     )
@@ -393,6 +407,7 @@ def build_home(page, settings, on_emergency):
                 error,
                 current_card,
                 peak_card,
+                simulator_card,
                 ft.Row(controls=[refresh_button]),
                 source,
                 ft.Row(
