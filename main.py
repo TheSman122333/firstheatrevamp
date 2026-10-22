@@ -49,12 +49,12 @@ async def main(page: ft.Page):
     emergency = build_emergency(page, settings)
     settings_screen = build_settings(page, settings, update_settings)
 
-    #add developer mode to Settings
+    #add developer mode to Home
     toggle, simulator = build_developer_mode(
         page, settings, person
     )
 
-    settings_screen.content.controls.extend([
+    home.content.controls.extend([
         ft.Divider(),
         toggle,
         simulator

@@ -1,11 +1,13 @@
 #Homepage: a brief display of today
 
 import asyncio
+from datetime import datetime
 from pathlib import Path
 
 import flet as ft
 
 from core.today import fetch_today_summary
+from views.peak_chart import LINE_COLORS, ORDER, build_peak_chart
 
 
 #colors
@@ -175,21 +177,62 @@ def build_home(page, settings, on_emergency):
     #todays peak
     peak_text = ft.Text("", size=17, color=DARK)
 
+    #hourly curve, 6 AM to 10 PM
+    peak_chart = ft.Image(
+        src=b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>',
+        fit=ft.BoxFit.CONTAIN,
+        visible=False
+    )
+
+    #color key for the chart bands
+    legend = ft.Row(
+        controls=[
+            ft.Row(
+                controls=[
+                    ft.Container(
+                        width=10,
+                        height=10,
+                        border_radius=5,
+                        bgcolor=LINE_COLORS[name]
+                    ),
+                    ft.Text(name.title(), size=12, color=MUTED)
+                ],
+                spacing=4,
+                tight=True
+            )
+            for name in ORDER
+        ],
+        spacing=12,
+        wrap=True,
+        alignment=ft.MainAxisAlignment.CENTER,
+        visible=False
+    )
+
     peak_card = ft.Container(
         bgcolor="#FFFFFF",
         border_radius=20,
-        padding=22,
+        padding=ft.Padding.only(left=16, top=22, right=16, bottom=16),
         visible=False,
         content=ft.Column(
             controls=[
-                ft.Text(
-                    "Today's peak",
-                    size=19,
-                    weight=ft.FontWeight.BOLD,
-                    color=DARK
+                ft.Container(
+                    padding=ft.Padding.only(left=6, right=6),
+                    content=ft.Column(
+                        controls=[
+                            ft.Text(
+                                "Today's peak",
+                                size=19,
+                                weight=ft.FontWeight.BOLD,
+                                color=DARK
+                            ),
+                            peak_text
+                        ]
+                    )
                 ),
-                peak_text
-            ]
+                peak_chart,
+                legend
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH
         )
     )
 
@@ -277,6 +320,21 @@ def build_home(page, settings, on_emergency):
                 f"at {today['peak_time']:%I:%M %p} "
                 f"· {today['peak_category'].title()}"
             )
+
+            try:
+                now = datetime.now(today["current_time"].tzinfo)
+
+                peak_chart.src, peak_chart.semantics_label = build_peak_chart(
+                    today["hourly"],
+                    today["thresholds_f"],
+                    now
+                )
+                peak_chart.visible = True
+
+            except (KeyError, ValueError):
+                peak_chart.visible = False
+
+            legend.visible = peak_chart.visible
 
             peak_card.visible = True
 

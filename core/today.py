@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from core.rules import get_category
+from core.rules import get_category, load_rules
 
 
 def utc_time(text):
@@ -74,6 +74,20 @@ def summarize_today(readings, now_utc=None, location=None):
         peak["wbgt"], f"sports_{region}"
     )
 
+    #every hour of today for the day chart
+    hourly = [
+        {
+            "time": local,
+            "wbgt": reading["wbgt"],
+            "category": get_category(
+                reading["wbgt"], f"sports_{region}"
+            )["category"]
+        }
+        for local, reading in today
+    ]
+
+    thresholds = load_rules()["sports"]["regions"][str(region)]["minimums"]
+
     return {
         "current_time": current_time,
         "current_wbgt": hour["wbgt"],
@@ -83,6 +97,8 @@ def summarize_today(readings, now_utc=None, location=None):
         "peak_wbgt": peak["wbgt"],
         "peak_category": peak_category["category"],
         "region": region,
+        "hourly": hourly,
+        "thresholds_f": thresholds,
         "weather_source": "Open-Meteo hourly forecast",
         "rule_source": category["source"]
     }
