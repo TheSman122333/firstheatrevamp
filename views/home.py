@@ -29,7 +29,9 @@ SCORE_COLORS = {
 }
 
 #background activity art per category: file, accent color, description
-ART_DIR = Path(__file__).resolve().parent.parent / "assets" / "activity"
+ASSETS = Path(__file__).resolve().parent.parent / "assets"
+ART_DIR = ASSETS / "activity"
+LOGO = (ASSETS / "logo" / "firstheat-mark.svg").read_bytes()
 
 ACTIVITY_ART = {
     "green": ("kids-jump-rope.svg", "#16A34A", "Kids playing jump rope outside"),
@@ -411,25 +413,50 @@ def build_home(page, settings, on_emergency, simulator=()):
     #home layout
     screen = ft.SafeArea(expand=True, content=ft.Column(
             controls=[
-                ft.Column(
+                #logo: sun with a "1" for First, heartbeat line for safety
+                ft.Row(
                     controls=[
-                        ft.Text(
-                            "FirstHeat",
-                            size=30,
-                            color=DARK,
-                            weight=ft.FontWeight.BOLD
+                        ft.Image(
+                            src=LOGO,
+                            width=56,
+                            height=56,
+                            semantics_label="FirstHeat logo"
                         ),
-                        ft.Container(
-                            padding=ft.Padding.only(left=20),
-                            content=ft.Text(
-                                "Adaptive heat-safety planner",
-                                size=15,
-                                color=MUTED,
-                                italic=True
-                            )
+                        ft.Column(
+                            controls=[
+                                ft.Text(
+                                    spans=[
+                                        ft.TextSpan(
+                                            "First",
+                                            style=ft.TextStyle(color=DARK)
+                                        ),
+                                        ft.TextSpan(
+                                            "Heat",
+                                            style=ft.TextStyle(color="#EA580C")
+                                        )
+                                    ],
+                                    size=36,
+                                    weight=ft.FontWeight.W_900,
+                                    style=ft.TextStyle(
+                                        height=1.05,
+                                        letter_spacing=-0.5
+                                    )
+                                ),
+                                ft.Container(
+                                    padding=ft.Padding.only(left=12),
+                                    content=ft.Text(
+                                        "Your adaptive heat-safety planner",
+                                        size=15,
+                                        color=MUTED,
+                                        italic=True
+                                    )
+                                )
+                            ],
+                            spacing=0,
+                            expand=True
                         )
                     ],
-                    spacing=0
+                    spacing=12
                 ),
                 emergency_button,
                 status,

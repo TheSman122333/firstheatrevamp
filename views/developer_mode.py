@@ -286,11 +286,6 @@ def build_developer_mode(page, settings, profile):
     #simulation panel
     panel = ft.Column(
         controls=[
-            ft.Text(
-                "SIMULATED — for testing only",
-                size=17,
-                weight=ft.FontWeight.BOLD
-            ),
             wbgt_block,
             region_block,
             role_block,
