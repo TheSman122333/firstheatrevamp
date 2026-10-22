@@ -209,11 +209,21 @@ def build_home(page, settings):
     #home layout
     screen = ft.SafeArea(expand=True, content=ft.Column(
             controls=[
-                ft.Text(
-                    "FirstHeat",
-                    size=30,
-                    color=DARK,
-                    weight=ft.FontWeight.BOLD
+                ft.Column(
+                    controls=[
+                        ft.Text(
+                            "FirstHeat",
+                            size=30,
+                            color=DARK,
+                            weight=ft.FontWeight.BOLD
+                        ),
+                        ft.Text(
+                            "Adaptive heat-safety planner",
+                            size=15,
+                            color=MUTED
+                        )
+                    ],
+                    spacing=0
                 ),
                 location,
                 status,
