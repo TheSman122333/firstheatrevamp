@@ -15,13 +15,34 @@ CARD_COLORS = {
     "black": ("#273244", "#FFFFFF")
 }
 
+#brighter category colors for the big WBGT number
+SCORE_COLORS = {
+    "green": "#15803D",
+    "yellow": "#A16207",
+    "orange": "#C2410C",
+    "red": "#B91C1C",
+    "black": "#FFFFFF"
+}
+
+#categories that show the emergency shortcut
+DANGER = ("orange", "red", "black")
+
 MUTED = "#64748B"
 DARK = "#172033"
 
 
-def build_home(page, settings):
+def build_home(page, settings, on_emergency):
 
-    location = ft.Text("", size=15, color=MUTED)
+    emergency_button = ft.Button(
+        content="Emergency help — CALL 911 instructions",
+        icon=ft.Icons.WARNING,
+        color="#FFFFFF",
+        bgcolor="#B91C1C",
+        height=54,
+        visible=False,
+        on_click=on_emergency
+    )
+
     status = ft.Text("", color=MUTED)
 
     loading = ft.Row(
@@ -34,18 +55,24 @@ def build_home(page, settings):
     error = ft.Text("", color="#991B1B", visible=False)
 
     #current WBGT
-    hour = ft.Text("CURRENT HOUR", size=13)
+    hour = ft.Text(
+        "CURRENT HOUR",
+        size=13,
+        text_align=ft.TextAlign.CENTER
+    )
 
     temperature = ft.Text(
         "-- °F WBGT ",
         size=48,
-        weight=ft.FontWeight.BOLD
+        weight=ft.FontWeight.BOLD,
+        text_align=ft.TextAlign.CENTER
     )
 
     category = ft.Text(
         "",
         size=20,
-        weight=ft.FontWeight.BOLD
+        weight=ft.FontWeight.BOLD,
+        text_align=ft.TextAlign.CENTER
     )
 
     advice_label = ft.Text(
@@ -70,7 +97,8 @@ def build_home(page, settings):
                 advice_label,
                 guidance
             ],
-            spacing=10
+            spacing=10,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH
         )
     )
 
@@ -122,11 +150,6 @@ def build_home(page, settings):
 
         busy = True
 
-        location.value = (
-            f"{settings['name']}, {settings['state']} "
-            f"· Sports region {settings['region']}"
-        )
-
         loading.visible = True
         status.value = ""
         error.visible = False
@@ -161,8 +184,10 @@ def build_home(page, settings):
 
             current_card.bgcolor = background
 
-            for item in (hour, temperature, category):
+            for item in (hour, category):
                 item.color = ink
+
+            temperature.color = SCORE_COLORS[level]
 
             guidance.color = (
                 "#FFFFFF" if level == "black" else DARK
@@ -173,6 +198,9 @@ def build_home(page, settings):
             )
 
             current_card.visible = True
+
+            #emergency shortcut only for dangerous heat
+            emergency_button.visible = level in DANGER
 
             #peak
             peak_text.value = (
@@ -197,6 +225,9 @@ def build_home(page, settings):
             error.value = f"Could not load forecast: {exc}"
             error.visible = True
 
+            #conditions unknown, so keep the shortcut
+            emergency_button.visible = True
+
         finally:
             busy = False
             loading.visible = False
@@ -217,21 +248,25 @@ def build_home(page, settings):
                             color=DARK,
                             weight=ft.FontWeight.BOLD
                         ),
-                        ft.Text(
-                            "Adaptive heat-safety planner",
-                            size=15,
-                            color=MUTED
+                        ft.Container(
+                            padding=ft.Padding.only(left=20),
+                            content=ft.Text(
+                                "Adaptive heat-safety planner",
+                                size=15,
+                                color=MUTED,
+                                italic=True
+                            )
                         )
                     ],
                     spacing=0
                 ),
-                location,
+                emergency_button,
                 status,
                 loading,
                 error,
                 current_card,
                 peak_card,
-                refresh_button,
+                ft.Row(controls=[refresh_button]),
                 source,
                 ft.Row(
                     controls=[
@@ -251,7 +286,9 @@ def build_home(page, settings):
             ],
             spacing=14,
             scroll=ft.ScrollMode.AUTO,
-            expand=True
+            expand=True,
+            #same width for every tile
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH
         )
     )
 

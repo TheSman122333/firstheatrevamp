@@ -38,7 +38,9 @@ async def main(page: ft.Page):
         person.update(changes)
 
     #build all screens
-    home, refresh_home = build_home(page, settings)
+    home, refresh_home = build_home(
+        page, settings, lambda e: go(3)
+    )
     weekly, refresh_weekly = build_plan(page, settings)
     my_plan, refresh_my_plan = build_my_plan(
         page, settings, person, update_person
@@ -85,19 +87,6 @@ async def main(page: ft.Page):
 
     def navigate(event):
         go(event.control.selected_index)
-
-    #emergency shortcut on Home
-    home.content.controls.insert(
-        1,
-        ft.Button(
-            content="Emergency help — CALL 911 instructions",
-            icon=ft.Icons.WARNING,
-            color="#FFFFFF",
-            bgcolor="#B91C1C",
-            height=54,
-            on_click=lambda e: go(3)
-        )
-    )
 
     #bottom navigation
     page.navigation_bar = ft.NavigationBar(
