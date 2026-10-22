@@ -1,6 +1,8 @@
 #Homepage: a brief display of today
 
 import asyncio
+from pathlib import Path
+
 import flet as ft
 
 from core.today import fetch_today_summary
@@ -12,7 +14,7 @@ CARD_COLORS = {
     "yellow": ("#FFF4CC", "#795500"),
     "orange": ("#FFE4D2", "#9A3412"),
     "red": ("#FCE0E0", "#991B1B"),
-    "black": ("#273244", "#FFFFFF")
+    "black": ("#E2E8F0", "#0F172A")
 }
 
 #brighter category colors for the big WBGT number
@@ -21,7 +23,18 @@ SCORE_COLORS = {
     "yellow": "#A16207",
     "orange": "#C2410C",
     "red": "#B91C1C",
-    "black": "#FFFFFF"
+    "black": "#0F172A"
+}
+
+#background activity art per category: file, accent color, description
+ART_DIR = Path(__file__).resolve().parent.parent / "assets" / "activity"
+
+ACTIVITY_ART = {
+    "green": ("kids-jump-rope.svg", "#16A34A", "Kids playing jump rope outside"),
+    "yellow": ("runner-water.svg", "#CA8A04", "Runner holding a cup of water"),
+    "orange": ("bike-ride.svg", "#EA580C", "Person riding a bike"),
+    "red": ("shade-break.svg", "#DC2626", "Person resting in the shade"),
+    "black": ("indoor-bike.svg", "#B91C1C", "Person exercising indoors on a bike")
 }
 
 #categories that show the emergency shortcut
@@ -29,6 +42,14 @@ DANGER = ("orange", "red", "black")
 
 MUTED = "#64748B"
 DARK = "#172033"
+
+
+def activity_art(level):
+    #tint the illustration with the category color
+    name, accent, label = ACTIVITY_ART[level]
+    svg = (ART_DIR / name).read_text(encoding="utf-8")
+
+    return svg.replace("currentColor", accent).encode(), label
 
 
 def build_home(page, settings, on_emergency):
@@ -81,23 +102,72 @@ def build_home(page, settings, on_emergency):
         color=MUTED
     )
 
-    guidance = ft.Text("", size=15)
+    guidance = ft.Text("", size=15, color=DARK)
 
-    current_card = ft.Container(
-        bgcolor=CARD_COLORS["green"][0],
-        border_radius=20,
-        padding=24,
-        visible=False,
+    #activity picture with the score on top
+    art_svg, art_label = activity_art("green")
+
+    art = ft.Image(
+        src=art_svg,
+        fit=ft.BoxFit.CONTAIN,
+        semantics_label=art_label
+    )
+
+    #frosted panel keeps the score readable over the picture
+    glass = ft.Container(
+        left=14,
+        right=14,
+        top=14,
+        padding=ft.Padding.only(left=8, top=12, right=8, bottom=12),
+        border_radius=18,
+        blur=ft.Blur(10, 10),
         content=ft.Column(
             controls=[
                 hour,
                 temperature,
-                category,
-                ft.Divider(),
-                advice_label,
-                guidance
+                category
             ],
-            spacing=10,
+            spacing=2,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH
+        )
+    )
+
+    hero = ft.Stack(
+        height=380,
+        controls=[
+            ft.Container(
+                left=12,
+                right=12,
+                top=118,
+                bottom=8,
+                alignment=ft.Alignment.BOTTOM_CENTER,
+                content=art
+            ),
+            glass
+        ]
+    )
+
+    current_card = ft.Container(
+        bgcolor=CARD_COLORS["green"][0],
+        border_radius=20,
+        clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+        visible=False,
+        content=ft.Column(
+            controls=[
+                hero,
+                ft.Container(
+                    padding=ft.Padding.only(left=24, right=24, bottom=24),
+                    content=ft.Column(
+                        controls=[
+                            ft.Divider(),
+                            advice_label,
+                            guidance
+                        ],
+                        spacing=10
+                    )
+                )
+            ],
+            spacing=0,
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH
         )
     )
@@ -189,12 +259,11 @@ def build_home(page, settings, on_emergency):
 
             temperature.color = SCORE_COLORS[level]
 
-            guidance.color = (
-                "#FFFFFF" if level == "black" else DARK
-            )
+            art.src, art.semantics_label = activity_art(level)
 
-            advice_label.color = (
-                "#E2E8F0" if level == "black" else MUTED
+            glass.bgcolor = ft.Colors.with_opacity(0.72, background)
+            glass.border = ft.Border.all(
+                1, ft.Colors.with_opacity(0.6, "#FFFFFF")
             )
 
             current_card.visible = True
