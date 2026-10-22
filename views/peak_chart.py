@@ -27,9 +27,11 @@ LINE_COLORS = {
 
 MUTED = "#64748B"
 
-#drawing area inside the SVG, about one inch tall on screen
-WIDTH, HEIGHT = 320, 100
-LEFT, RIGHT, TOP, BOTTOM = 28, 306, 18, 80
+#drawing area inside the SVG, about one inch tall on screen;
+#the width follows the screen
+HEIGHT = 100
+LEFT, TOP, BOTTOM = 28, 18, 80
+RIGHT_MARGIN = 14
 
 
 def to_f(celsius):
@@ -80,8 +82,11 @@ def smooth_path(points):
     return " ".join(path)
 
 
-def build_peak_chart(hourly, thresholds_f, now=None):
+def build_peak_chart(hourly, thresholds_f, now=None, width=320):
     "return SVG bytes and a short description of today's curve"
+
+    width = round(min(max(width, 220), 2400), 1)
+    right = width - RIGHT_MARGIN
 
     points = [
         (item["time"].hour, to_f(item["wbgt"]), item["category"])
@@ -105,7 +110,7 @@ def build_peak_chart(hourly, thresholds_f, now=None):
     low, high = floor(low), ceil(high)
 
     def x_at(hour):
-        return LEFT + (hour - START_HOUR) / (END_HOUR - START_HOUR) * (RIGHT - LEFT)
+        return LEFT + (hour - START_HOUR) / (END_HOUR - START_HOUR) * (right - LEFT)
 
     def y_at(value):
         return BOTTOM - (value - low) / (high - low) * (BOTTOM - TOP)
@@ -131,12 +136,14 @@ def build_peak_chart(hourly, thresholds_f, now=None):
         top, bottom = y_at(end), y_at(start)
 
         shapes.append(
-            f'<rect x="{LEFT}" y="{top:.1f}" width="{RIGHT - LEFT}" '
+            f'<rect x="{LEFT}" y="{top:.1f}" width="{right - LEFT}" '
             f'height="{bottom - top:.1f}" fill="{BAND_COLORS[name]}"/>'
         )
 
-    #time grid every two hours
-    for hour in range(START_HOUR, END_HOUR + 1, 2):
+    #time grid every hour on wide screens, every two hours on phones
+    step = 1 if (right - LEFT) / (END_HOUR - START_HOUR) >= 40 else 2
+
+    for hour in range(START_HOUR, END_HOUR + 1, step):
         x = x_at(hour)
 
         shapes.append(
@@ -208,7 +215,7 @@ def build_peak_chart(hourly, thresholds_f, now=None):
     peak_index = max(range(len(points)), key=lambda i: points[i][1])
     peak_hour, peak_value, peak_name = points[peak_index]
     peak_x, peak_y = coords[peak_index]
-    label_x = min(max(peak_x, LEFT + 46), RIGHT - 46)
+    label_x = min(max(peak_x, LEFT + 46), right - 46)
 
     shapes.append(
         f'<circle cx="{peak_x:.1f}" cy="{peak_y:.1f}" r="4.5" '
@@ -221,12 +228,12 @@ def build_peak_chart(hourly, thresholds_f, now=None):
     )
 
     svg = (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {HEIGHT}" '
-        f'width="{WIDTH}" height="{HEIGHT}" font-family="Roboto, sans-serif">'
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {HEIGHT}" '
+        f'width="{width}" height="{HEIGHT}" font-family="Roboto, sans-serif">'
         f'<defs><linearGradient id="heat" gradientUnits="userSpaceOnUse" '
         f'x1="0" y1="{BOTTOM}" x2="0" y2="{TOP}">{"".join(stops)}</linearGradient></defs>'
         f'{"".join(shapes)}'
-        f'<line x1="{LEFT}" y1="{BOTTOM}" x2="{RIGHT}" y2="{BOTTOM}" stroke="#CBD5E1" stroke-width="1"/>'
+        f'<line x1="{LEFT}" y1="{BOTTOM}" x2="{right}" y2="{BOTTOM}" stroke="#CBD5E1" stroke-width="1"/>'
         f'</svg>'
     )
 

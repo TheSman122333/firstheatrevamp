@@ -77,24 +77,20 @@ def build_home(page, settings, on_emergency, simulator=()):
 
     error = ft.Text("", color="#991B1B", visible=False)
 
-    #current WBGT
-    hour = ft.Text(
-        "CURRENT HOUR",
-        size=13,
-        text_align=ft.TextAlign.CENTER
-    )
-
+    #current WBGT, as bold as possible
     temperature = ft.Text(
-        "-- °F WBGT ",
-        size=48,
-        weight=ft.FontWeight.BOLD,
+        "--°F",
+        size=72,
+        weight=ft.FontWeight.W_900,
+        style=ft.TextStyle(height=1.05),
         text_align=ft.TextAlign.CENTER
     )
 
-    category = ft.Text(
+    #when the number was last calculated
+    calculated = ft.Text(
         "",
-        size=20,
-        weight=ft.FontWeight.BOLD,
+        size=16,
+        weight=ft.FontWeight.W_600,
         text_align=ft.TextAlign.CENTER
     )
 
@@ -109,9 +105,11 @@ def build_home(page, settings, on_emergency, simulator=()):
     #activity picture with the score on top
     art_svg, art_label = activity_art("green")
 
+    #width cap keeps the picture phone-sized on wide screens
     art = ft.Image(
         src=art_svg,
         fit=ft.BoxFit.CONTAIN,
+        width=360,
         semantics_label=art_label
     )
 
@@ -120,27 +118,36 @@ def build_home(page, settings, on_emergency, simulator=()):
         left=14,
         right=14,
         top=14,
-        padding=ft.Padding.only(left=8, top=12, right=8, bottom=12),
+        padding=ft.Padding.only(left=8, top=10, right=8, bottom=10),
         border_radius=18,
         blur=ft.Blur(10, 10),
         content=ft.Column(
             controls=[
-                hour,
                 temperature,
-                category
+                calculated
             ],
-            spacing=2,
+            spacing=0,
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH
         )
     )
 
+    def fit_number(event):
+        #shrink the number on narrow screens so it stays on one line
+        size = round(max(40, min(80, (event.width - 44) / 4.2)))
+
+        if size != temperature.size:
+            temperature.size = size
+            page.update()
+
     hero = ft.Stack(
-        height=380,
+        height=400,
+        size_change_interval=100,
+        on_size_change=fit_number,
         controls=[
             ft.Container(
                 left=12,
                 right=12,
-                top=118,
+                top=150,
                 bottom=8,
                 alignment=ft.Alignment.BOTTOM_CENTER,
                 content=art
@@ -177,13 +184,40 @@ def build_home(page, settings, on_emergency, simulator=()):
     #todays peak
     peak_text = ft.Text("", size=17, color=DARK)
 
-    #hourly curve, 6 AM to 10 PM
+    #hourly curve, 6 AM to 10 PM, redrawn to fill the card width
     peak_chart = ft.Image(
         src=b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>',
         fit=ft.BoxFit.CONTAIN,
-        height=96,
-        visible=False
+        height=100
     )
+
+    chart_box = ft.Container(
+        content=peak_chart,
+        visible=False,
+        size_change_interval=150
+    )
+
+    chart_width = 320
+    chart_data = None
+
+    def draw_chart():
+        peak_chart.src, peak_chart.semantics_label = build_peak_chart(
+            *chart_data, width=chart_width
+        )
+
+    def resize_chart(event):
+        nonlocal chart_width
+
+        if abs(event.width - chart_width) < 2:
+            return
+
+        chart_width = event.width
+
+        if chart_data is not None:
+            draw_chart()
+            page.update()
+
+    chart_box.on_size_change = resize_chart
 
     #color key for the chart bands
     legend = ft.Row(
@@ -212,12 +246,12 @@ def build_home(page, settings, on_emergency, simulator=()):
     peak_card = ft.Container(
         bgcolor="#FFFFFF",
         border_radius=20,
-        padding=ft.Padding.only(left=16, top=22, right=16, bottom=16),
+        padding=ft.Padding.only(left=8, top=22, right=8, bottom=16),
         visible=False,
         content=ft.Column(
             controls=[
                 ft.Container(
-                    padding=ft.Padding.only(left=6, right=6),
+                    padding=ft.Padding.only(left=14, right=14),
                     content=ft.Column(
                         controls=[
                             ft.Text(
@@ -230,7 +264,7 @@ def build_home(page, settings, on_emergency, simulator=()):
                         ]
                     )
                 ),
-                peak_chart,
+                chart_box,
                 legend
             ],
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH
@@ -270,7 +304,7 @@ def build_home(page, settings, on_emergency, simulator=()):
     busy = False
 
     async def refresh(_event=None):
-        nonlocal busy
+        nonlocal busy, chart_data
 
         if busy:
             return
@@ -297,24 +331,24 @@ def build_home(page, settings, on_emergency, simulator=()):
 
             level = today["category"]
             background, ink = CARD_COLORS[level]
+            now = datetime.now(today["current_time"].tzinfo)
+            wbgt_f = today["current_wbgt"] * 9 / 5 + 32
 
-            hour.value = (
-                f"ESTIMATED WBGT · {today['current_time']:%I:%M %p}"
+            temperature.value = f"{wbgt_f:.1f}°F"
+            temperature.color = SCORE_COLORS[level]
+
+            #screen readers still hear that it is an estimate and its category
+            temperature.semantics_label = (
+                f"Estimated WBGT {wbgt_f:.1f} degrees Fahrenheit, "
+                f"{level} heat category"
             )
 
-            temperature.value = (
-                f"{today['current_wbgt'] * 9 / 5 + 32:.1f} °F WBGT "
-            )
+            calculated.value = f"WBGT @ {now:%I:%M %p}".replace("@ 0", "@ ")
+            calculated.color = ink
 
-            category.value = f"{level.title()} heat category"
             guidance.value = today["guidance"]
 
             current_card.bgcolor = background
-
-            for item in (hour, category):
-                item.color = ink
-
-            temperature.color = SCORE_COLORS[level]
 
             art.src, art.semantics_label = activity_art(level)
 
@@ -336,19 +370,15 @@ def build_home(page, settings, on_emergency, simulator=()):
             )
 
             try:
-                now = datetime.now(today["current_time"].tzinfo)
-
-                peak_chart.src, peak_chart.semantics_label = build_peak_chart(
-                    today["hourly"],
-                    today["thresholds_f"],
-                    now
-                )
-                peak_chart.visible = True
+                chart_data = (today["hourly"], today["thresholds_f"], now)
+                draw_chart()
+                chart_box.visible = True
 
             except (KeyError, ValueError):
-                peak_chart.visible = False
+                chart_data = None
+                chart_box.visible = False
 
-            legend.visible = peak_chart.visible
+            legend.visible = chart_box.visible
 
             peak_card.visible = True
 
