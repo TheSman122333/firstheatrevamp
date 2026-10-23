@@ -15,6 +15,13 @@ async def main(page: ft.Page):
 
     page.title = "FirstHeat"
     page.theme_mode = ft.ThemeMode.LIGHT
+
+    #slightly smaller tab labels so "Acclimation Plan" fits on small phones
+    page.theme = ft.Theme(
+        navigation_bar_theme=ft.NavigationBarTheme(
+            label_text_style=ft.TextStyle(size=11)
+        )
+    )
     page.bgcolor = "#F8FAFC"
     page.padding = 20
 
@@ -94,7 +101,7 @@ async def main(page: ft.Page):
             ),
             ft.NavigationBarDestination(
                 icon=ft.Icons.EVENT_NOTE_OUTLINED,
-                label="My plan"
+                label="Acclimation\nPlan"
             ),
             ft.NavigationBarDestination(
                 icon=ft.Icon(

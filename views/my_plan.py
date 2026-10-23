@@ -5,33 +5,80 @@ import flet as ft
 
 from core.plan import fetch_week_plan
 from core.planner import project_week
+from views.brand import brand_header
+from views.sliders import side_gradient, slider_block
 
 
 DARK = "#172033"
 MUTED = "#64748B"
 
+ROLES = [("athlete", "Athlete"), ("worker", "Outdoor worker")]
+EXPERIENCE = ["New to the heat", "Experienced"]
+
+#usual shift slider, 2 to 12 hours in half-hour steps
+SHIFT_MIN, SHIFT_MAX, SHIFT_STEP = 120, 720, 30
+
+#new to the heat carries more risk; longer shifts mean more exposure
+EXPERIENCE_COLORS = ["#F97316", "#16A34A"]
+SHIFT_COLORS = ["#16A34A", "#EAB308", "#F97316"]
+
+
+def role_index(role):
+    return [key for key, _ in ROLES].index(role)
+
+
+def shift_label(minutes):
+    return f"{minutes / 60:g} h · {minutes} min"
+
 
 def build_my_plan(page, settings, profile, on_save):
 
-    #personal settings
-    role = ft.Dropdown(
-        label="Activity",
-        value=profile["role"],
-        options=[
-            ft.DropdownOption(key="worker", text="Outdoor worker"),
-            ft.DropdownOption(key="athlete", text="Athlete")
-        ]
+    #personal settings as sliders
+    role = ft.Slider(min=0, max=1, divisions=1, value=role_index(profile["role"]))
+
+    experienced = ft.Slider(
+        min=0, max=1, divisions=1, value=1 if profile["experienced"] else 0
     )
 
-    experienced = ft.Checkbox(
-        label="Experienced in the heat",
-        value=profile["experienced"]
+    shift = ft.Slider(
+        min=SHIFT_MIN,
+        max=SHIFT_MAX,
+        divisions=(SHIFT_MAX - SHIFT_MIN) // SHIFT_STEP,
+        value=min(max(profile["normal_minutes"], SHIFT_MIN), SHIFT_MAX)
     )
 
-    shift = ft.TextField(
-        label="Usual shift (minutes)",
-        value=str(profile["normal_minutes"])
+    role_block, role_value, _ = slider_block(
+        "Activity",
+        role,
+        [name for _, name in ROLES]
     )
+
+    experienced_block, experienced_value, _ = slider_block(
+        "Heat experience",
+        experienced,
+        EXPERIENCE,
+        side_gradient(EXPERIENCE_COLORS)
+    )
+
+    shift_block, shift_value, _ = slider_block(
+        "Usual shift",
+        shift,
+        [f"{hours} h" for hours in range(2, 13, 2)],
+        side_gradient(SHIFT_COLORS)
+    )
+
+    def chosen_minutes():
+        return int(round(shift.value / SHIFT_STEP) * SHIFT_STEP)
+
+    #show what each slider is set to
+    def show_values():
+        role_value.value = ROLES[int(round(role.value))][1]
+        experienced_value.value = EXPERIENCE[int(round(experienced.value))]
+        shift_value.value = shift_label(chosen_minutes())
+
+        is_worker = ROLES[int(round(role.value))][0] == "worker"
+        experienced_block.visible = is_worker
+        shift_block.visible = is_worker
 
     duration = ft.TextField(
         label="Actual minutes completed today",
@@ -55,8 +102,8 @@ def build_my_plan(page, settings, profile, on_save):
     )
 
     refresh_button = ft.Button(
-        content="Refresh forecast",
-        icon=ft.Icons.REFRESH
+        content="Generate Personalized Plan",
+        icon=ft.Icons.AUTO_AWESOME
     )
 
     cached_week = None
@@ -175,40 +222,31 @@ def build_my_plan(page, settings, profile, on_save):
     async def save_form(_event=None):
 
         try:
-            if profile["sessions"] and role.value != profile["role"]:
-                role.value = profile["role"]
+            chosen_role = ROLES[int(round(role.value))][0]
+
+            if profile["sessions"] and chosen_role != profile["role"]:
+                role.value = role_index(profile["role"])
+                show_values()
                 raise ValueError(
                     "Reset attendance before changing activity."
                 )
 
-            #*check shift duration*
-            if role.value == "worker":
-                text = (shift.value or "").strip()
-
-                if not text.isdecimal():
-                    raise ValueError("Enter your usual shift in minutes.")
-
-                minutes = int(text)
-
-                if not 1 <= minutes <= 1440:
-                    raise ValueError(
-                        "Shift must be between 1 and 1440 minutes."
-                    )
+            #shift only matters for workers
+            if chosen_role == "worker":
+                minutes = chosen_minutes()
             else:
                 minutes = profile["normal_minutes"]
 
             updated = {
                 **profile,
-                "role": role.value,
-                "experienced": bool(experienced.value),
+                "role": chosen_role,
+                "experienced": int(round(experienced.value)) == 1,
                 "normal_minutes": minutes
             }
 
             await on_save(updated)
 
-            shift.visible = role.value == "worker"
-            experienced.visible = role.value == "worker"
-
+            show_values()
             status.value = "Preferences saved"
             display()
 
@@ -359,28 +397,30 @@ def build_my_plan(page, settings, profile, on_save):
             refresh_button.disabled = False
             page.update()
 
-    #button and field actions
-    role.on_select = save_form
-    experienced.on_change = save_form
+    #button and slider actions
+    def slide(_event=None):
+        show_values()
+        page.update()
 
-    shift.on_blur = save_form
-    shift.on_submit = save_form
+    for slider in (role, experienced, shift):
+        slider.on_change = slide
+        slider.on_change_end = save_form
 
     mark_button.on_click = mark_done
     reset_button.on_click = lambda e: page.show_dialog(reset_dialog)
     refresh_button.on_click = refresh
 
-    shift.visible = profile["role"] == "worker"
-    experienced.visible = profile["role"] == "worker"
+    show_values()
 
     #page layout
     screen = ft.SafeArea(
         expand=True,
         content=ft.Column(
             controls=[
+                brand_header(),
                 ft.Text(
                     "My Acclimation Planner",
-                    size=30,
+                    size=22,
                     weight=ft.FontWeight.BOLD,
                     color=DARK
                 ),
@@ -388,11 +428,30 @@ def build_my_plan(page, settings, profile, on_save):
                     "Your attendance changes the plan. "
                     "Future days assume you attend each day "
                     "with permitted activity.",
+                    size=13,
                     color=MUTED
                 ),
-                role,
-                experienced,
-                shift,
+                #profile sliders in a card like the Home tiles
+                ft.Container(
+                    bgcolor="#FFFFFF",
+                    border_radius=20,
+                    padding=22,
+                    content=ft.Column(
+                        controls=[
+                            ft.Text(
+                                "Your profile",
+                                size=19,
+                                weight=ft.FontWeight.BOLD,
+                                color=DARK
+                            ),
+                            role_block,
+                            experienced_block,
+                            shift_block
+                        ],
+                        spacing=14,
+                        horizontal_alignment=ft.CrossAxisAlignment.STRETCH
+                    )
+                ),
                 ft.Row([refresh_button, progress]),
                 status,
                 ft.Text(
@@ -402,8 +461,8 @@ def build_my_plan(page, settings, profile, on_save):
                 ),
                 current,
                 duration,
-                mark_button,
-                reset_button,
+                ft.Row([mark_button]),
+                ft.Row([reset_button]),
                 ft.Divider(),
                 ft.Text(
                     "Coming days · projected",
@@ -422,7 +481,8 @@ def build_my_plan(page, settings, profile, on_save):
             ],
             spacing=12,
             scroll=ft.ScrollMode.AUTO,
-            expand=True
+            expand=True,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH
         )
     )
 
