@@ -137,8 +137,6 @@ def build_home(page, settings, on_emergency, simulator=()):
         on_click=on_emergency
     )
 
-    status = ft.Text("", color=MUTED)
-
     loading = ft.Row(
         controls=[
             ft.ProgressRing(width=20, height=20),
@@ -146,7 +144,34 @@ def build_home(page, settings, on_emergency, simulator=()):
         ]
     )
 
-    error = ft.Text("", color="#991B1B", visible=False)
+    error = ft.Text("", color="#991B1B", expand=True)
+
+    #the refresh icon lives in the score panel, so offer a retry here
+    retry_button = ft.TextButton(content="Try again", icon=ft.Icons.REFRESH)
+
+    error_row = ft.Row(
+        controls=[error, retry_button],
+        spacing=8,
+        visible=False
+    )
+
+    #chosen city, top left of the score panel
+    city_icon = ft.Icon(ft.Icons.PLACE_OUTLINED, size=16)
+    city = ft.Text(
+        "",
+        size=14,
+        weight=ft.FontWeight.W_700,
+        no_wrap=True,
+        overflow=ft.TextOverflow.ELLIPSIS,
+        expand=True
+    )
+
+    refresh_button = ft.IconButton(
+        icon=ft.Icons.REFRESH,
+        icon_size=18,
+        tooltip="Refresh",
+        visual_density=ft.VisualDensity.COMPACT
+    )
 
     #current WBGT, as bold as possible
     temperature = ft.Text(
@@ -157,10 +182,10 @@ def build_home(page, settings, on_emergency, simulator=()):
         text_align=ft.TextAlign.CENTER
     )
 
-    #when the number was last calculated
+    #what the number is, when it was calculated, and the city's time zone
     calculated = ft.Text(
         "",
-        size=16,
+        size=15,
         weight=ft.FontWeight.W_600,
         text_align=ft.TextAlign.CENTER
     )
@@ -231,6 +256,11 @@ def build_home(page, settings, on_emergency, simulator=()):
         blur=ft.Blur(10, 10),
         content=ft.Column(
             controls=[
+                ft.Row(
+                    controls=[city_icon, city, refresh_button],
+                    spacing=4,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER
+                ),
                 temperature,
                 calculated,
                 conditions
@@ -512,14 +542,6 @@ def build_home(page, settings, on_emergency, simulator=()):
 
     source = ft.Text("", size=12, color=MUTED, visible=False)
 
-    #small refresh icon beside the update time
-    refresh_button = ft.IconButton(
-        icon=ft.Icons.REFRESH,
-        icon_size=20,
-        icon_color=MUTED,
-        tooltip="Refresh"
-    )
-
     busy = False
 
     #air temperature, humidity, UV and air quality tiles
@@ -640,12 +662,16 @@ def build_home(page, settings, on_emergency, simulator=()):
 
         estimate_f = last_today["current_wbgt"] * 9 / 5 + 32
 
+        #time and the city's zone (EST/EDT, CST/CDT, PST/PDT) stay on one line
+        def stamp(when):
+            return "\u00a0".join(["@", *time_text(when).split(), *([when.tzname()] if when.tzname() else [])])
+
         if measured:
             wbgt_f = reading["value_f"]
-            label = f"On-site reading @ {time_text(reading['at'])}"
+            label = f"On-site reading {stamp(reading['at'])}"
         else:
             wbgt_f = estimate_f
-            label = f"WBGT @ {time_text(calculated_at)}"
+            label = f"Heat stress (WBGT) {stamp(calculated_at)}"
 
         info = get_category(wbgt_f, f"sports_{region}", unit="F")
         level = info["category"]
@@ -656,12 +682,15 @@ def build_home(page, settings, on_emergency, simulator=()):
 
         #screen readers hear whether it is measured or estimated
         temperature.semantics_label = (
-            f"{'Measured' if measured else 'Estimated'} WBGT {wbgt_f:.1f} "
+            f"{'Measured' if measured else 'Estimated'} heat stress, WBGT {wbgt_f:.1f} "
             f"degrees Fahrenheit, {level} heat category"
         )
 
         calculated.value = label
         calculated.color = ink
+
+        city.value = ", ".join(part for part in (settings["name"], settings["state"]) if part)
+        city.color = city_icon.color = refresh_button.icon_color = ink
 
         guidance.value = info["guidance"]
         current_card.bgcolor = background
@@ -754,8 +783,7 @@ def build_home(page, settings, on_emergency, simulator=()):
         busy = True
 
         loading.visible = True
-        status.value = ""
-        error.visible = False
+        error_row.visible = False
         current_card.visible = False
         reading_card.visible = False
         peak_card.visible = False
@@ -798,12 +826,10 @@ def build_home(page, settings, on_emergency, simulator=()):
             )
 
             source.visible = True
-            #zone of the chosen city, e.g. EST/EDT, CST/CDT, PST/PDT
-            status.value = f"Times shown in {now.tzname() or 'local time'}"
 
         except Exception as exc:
             error.value = f"Could not load forecast: {exc}"
-            error.visible = True
+            error_row.visible = True
 
             #conditions unknown, so keep the shortcut
             emergency_button.visible = True
@@ -816,19 +842,15 @@ def build_home(page, settings, on_emergency, simulator=()):
             page.update()
 
     refresh_button.on_click = refresh
+    retry_button.on_click = refresh
 
     #home layout
     screen = ft.SafeArea(expand=True, content=ft.Column(
             controls=[
                 brand_header(),
                 emergency_button,
-                ft.Row(
-                    controls=[status, refresh_button],
-                    spacing=0,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER
-                ),
                 loading,
-                error,
+                error_row,
                 current_card,
                 reading_card,
                 peak_card,
