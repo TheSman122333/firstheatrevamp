@@ -100,6 +100,9 @@ def build_tracker(page, prefs, settings, on_use_minutes, on_change):
     reminder = None
     reminder_opened = None
 
+    #False while the browser tab is closed or reconnecting
+    online = True
+
     switch = ft.Switch(value=False)
 
     intro = ft.Text("", size=13, color=MUTED)
@@ -267,7 +270,9 @@ def build_tracker(page, prefs, settings, on_use_minutes, on_change):
 
         page.title = ALARM_TITLE
         page.show_dialog(reminder)
-        page.run_task(buzz)
+
+        #already on the page's loop, so no need for page.run_task
+        asyncio.get_running_loop().create_task(buzz())
 
     async def buzz():
         try:
@@ -336,7 +341,7 @@ def build_tracker(page, prefs, settings, on_use_minutes, on_change):
         nonlocal loop_task
 
         try:
-            while state["started"] is not None or reminder is not None:
+            while online and (state["started"] is not None or reminder is not None):
                 await tick()
                 await asyncio.sleep(1)
         finally:
@@ -392,6 +397,21 @@ def build_tracker(page, prefs, settings, on_use_minutes, on_change):
         page.update()
 
     switch.on_change = toggle
+
+    #stop ticking when the tab closes, and carry on if it comes back
+    def went_offline(_event=None):
+        nonlocal online
+        online = False
+
+    def came_online(_event=None):
+        nonlocal online
+        online = True
+
+        if state["started"] is not None or reminder is not None:
+            ensure_loop()
+
+    page.on_disconnect = went_offline
+    page.on_connect = came_online
 
     def use_minutes(_event=None):
         on_use_minutes(max(1, tracked_minutes()))
