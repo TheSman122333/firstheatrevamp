@@ -5,6 +5,7 @@ import flet as ft
 
 from core.geocoding import search_cities
 from views.brand import brand_header
+from views.demo_reminders import demo_reminder_section  #demo reminders, remove later
 from views.legal import about_section
 
 
@@ -187,6 +188,9 @@ def build_settings(page, settings, on_save):
                     color="#64748B",
                     size=12
                 ),
+                ft.Divider(),
+                #demo reminders, remove later
+                demo_reminder_section(page, settings, on_save),
                 ft.Divider(),
                 #where the numbers and rules come from
                 ft.Text(

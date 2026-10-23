@@ -1,6 +1,7 @@
 """Plan Page: attendance and seven-day heat plan"""
 
 import asyncio
+import math
 from datetime import date
 
 import flet as ft
@@ -11,7 +12,7 @@ from core.rules import next_category_if_close
 from views.brand import brand_header
 from views.peak_chart import LINE_COLORS, WINDOW_COLOR
 from views.sliders import side_gradient, slider_block
-from views.tracker import DONE_GREEN, MISSED_RED, build_tracker, reminder_dots
+from views.tracker import DONE_GREEN, MISSED_RED, build_tracker
 
 
 DARK = "#172033"
@@ -48,6 +49,11 @@ ALERTS = {
 
 #quick picks for logging minutes
 QUICK_MINUTES = [15, 30, 45, 60, 90]
+
+#dial sizes: planned ring, green logged band inside it, reminder dots inside that
+DIAL = 132
+BAND = 108
+DOT_RING = 41
 
 #athletes: NATA 14-day preseason; most practice allowed in one day
 PRESEASON_DAYS = 14
@@ -456,8 +462,8 @@ def build_my_plan(page, settings, profile, on_save, prefs):
         dial = [
             ft.ProgressRing(
                 value=ring_value,
-                width=120,
-                height=120,
+                width=DIAL,
+                height=DIAL,
                 stroke_width=10,
                 color=BRAND_ORANGE,
                 bgcolor="#F1F5F9",
@@ -469,8 +475,8 @@ def build_my_plan(page, settings, profile, on_save, prefs):
         if logged_minutes and limit:
             dial.append(ft.ProgressRing(
                 value=min(logged_minutes / limit, 1),
-                width=96,
-                height=96,
+                width=BAND,
+                height=BAND,
                 stroke_width=8,
                 color=DONE_GREEN,
                 bgcolor="#ECFDF5",
@@ -487,21 +493,39 @@ def build_my_plan(page, settings, profile, on_save, prefs):
             horizontal_alignment=ft.CrossAxisAlignment.CENTER
         ))
 
+        #reminder dots just inside the green band, clockwise from 12 o'clock:
+        #green for each break taken, red for each reminder missed
+        count = done + missed
+
+        if count:
+            step = min(15, 360 / count)
+            size = max(4, min(7, 2 * math.pi * DOT_RING * step / 360 - 2))
+
+            for index in range(count):
+                angle = math.radians(-90 + index * step)
+
+                dial.append(ft.Container(
+                    left=DIAL / 2 + DOT_RING * math.cos(angle) - size / 2,
+                    top=DIAL / 2 + DOT_RING * math.sin(angle) - size / 2,
+                    width=size,
+                    height=size,
+                    border_radius=size / 2,
+                    bgcolor=DONE_GREEN if index < done else MISSED_RED
+                ))
+
         ring_controls = [
             ft.Stack(
-                width=120,
-                height=120,
+                width=DIAL,
+                height=DIAL,
                 alignment=ft.Alignment.CENTER,
                 controls=dial
             )
         ]
 
-        #green dot per break taken, red dot per reminder missed
-        if done + missed:
-            ring_controls += [
-                ft.Container(width=120, content=reminder_dots(done, missed, 8)),
-                ft.Text(f"{done} of {done + missed} breaks", size=11, color=MUTED)
-            ]
+        if count:
+            ring_controls.append(
+                ft.Text(f"{done} of {count} break{'s' if count != 1 else ''} taken", size=11, color=MUTED)
+            )
 
         ring = ft.Column(
             controls=ring_controls,

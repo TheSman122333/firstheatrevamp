@@ -1,6 +1,7 @@
 "Activity tracker: times today's activity and reminds about breaks with a sound."
 
 import asyncio
+import math
 import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -8,6 +9,7 @@ from zoneinfo import ZoneInfo
 import flet as ft
 
 from core.rules import break_schedule
+from views.demo_reminders import demo_timing  #demo reminders, remove later
 from storage import load_tracker, save_tracker
 
 DARK = "#172033"
@@ -27,6 +29,17 @@ ALARM_TITLE = "⏰ Break time · FirstHeat"
 def clock_text(seconds):
     seconds = int(seconds)
     return f"{seconds // 3600}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
+
+
+def interval_text(minutes):
+    "20 minutes, 1 minute or 30 seconds"
+
+    seconds = round(minutes * 60)
+
+    if seconds % 60:
+        return f"{seconds} seconds"
+
+    return "1 minute" if seconds == 60 else f"{seconds // 60} minutes"
 
 
 def reminder_dots(done, missed, size=9):
@@ -71,7 +84,9 @@ def build_tracker(page, prefs, settings, on_use_minutes, on_change):
             "break": 3,
             "next": 1,
             "done": 0,
-            "missed": 0
+            "missed": 0,
+            #demo reminders, remove later: the Settings timing in use, if any
+            "demo": None
         }
 
     state = fresh_state()
@@ -155,9 +170,12 @@ def build_tracker(page, prefs, settings, on_use_minutes, on_change):
         else:
             intro.value = (
                 f"Turn on to time today's activity. You'll get a break reminder "
-                f"every {state['every']} minutes of activity ({state['break']}-minute "
+                f"every {interval_text(state['every'])} of activity ({state['break']}-minute "
                 "breaks: water and shade), with a sound. Keep this page open."
             )
+
+            if state.get("demo"):
+                intro.value += " Demo timing from Settings."
 
         black_warning.visible = category == "black" and not logged
         live.visible = total > 0 or running
@@ -193,16 +211,22 @@ def build_tracker(page, prefs, settings, on_use_minutes, on_change):
         use_button.content = f"Use {minutes} min for today's log"
         use_button.visible = minutes > 0 and not logged
 
-    #break reminder with a 30-second countdown
+    #how long a reminder stays up
+    def window():
+        demo = demo_timing(settings)
+        return demo["window_seconds"] if demo else REMINDER_SECONDS
+
+    #break reminder with a countdown, 30 seconds unless the demo timing says otherwise
     def open_reminder():
         nonlocal reminder, reminder_opened
 
         reminder_opened = time.time()
+        seconds = window()
 
         #advance now so a reconnect doesn't repeat this reminder
         state["next"] += 1
 
-        left_text = ft.Text(f"Closes in {REMINDER_SECONDS} s", size=12, color=MUTED)
+        left_text = ft.Text(f"Closes in {seconds} s", size=12, color=MUTED)
         left_bar = ft.ProgressBar(value=1, bar_height=6, color=BRAND_ORANGE, bgcolor="#E2E8F0", border_radius=3)
 
         reminder = ft.AlertDialog(
@@ -239,7 +263,7 @@ def build_tracker(page, prefs, settings, on_use_minutes, on_change):
         )
 
         #keep these to update the countdown
-        reminder.data = (left_text, left_bar)
+        reminder.data = (left_text, left_bar, seconds)
 
         page.title = ALARM_TITLE
         page.show_dialog(reminder)
@@ -278,13 +302,16 @@ def build_tracker(page, prefs, settings, on_use_minutes, on_change):
             await stop_for_new_day()
             return
 
+        if reminder is None and follow_settings():
+            await persist()
+
         if state["started"] is not None and reminder is None:
             total = total_seconds()
             every = state["every"] * 60
             due = state["next"] * every
 
             if total >= due:
-                if total - due > REMINDER_SECONDS:
+                if total - due > window():
                     #reminders that came due while the app was closed never showed
                     state["next"] = int(total // every) + 1
                     await persist()
@@ -293,14 +320,14 @@ def build_tracker(page, prefs, settings, on_use_minutes, on_change):
                     await persist()
 
         if reminder is not None:
-            left = REMINDER_SECONDS - (time.time() - reminder_opened)
+            left_text, left_bar, seconds = reminder.data
+            left = seconds - (time.time() - reminder_opened)
 
             if left <= 0:
                 await close_reminder(False)
             else:
-                left_text, left_bar = reminder.data
-                left_text.value = f"Closes in {int(left) + 1} s"
-                left_bar.value = left / REMINDER_SECONDS
+                left_text.value = f"Closes in {math.ceil(left)} s"
+                left_bar.value = left / seconds
 
         render()
         page.update()
@@ -372,10 +399,30 @@ def build_tracker(page, prefs, settings, on_use_minutes, on_change):
     use_button.on_click = use_minutes
 
     def apply_schedule():
-        if category:
+        demo = demo_timing(settings)
+        state["demo"] = demo
+
+        if demo:
+            seconds = demo["every_seconds"]
+            state["every"] = seconds // 60 if seconds % 60 == 0 else seconds / 60
+            state["break"] = demo["break_minutes"]
+        elif category:
             schedule = break_schedule(category)
             state["every"] = schedule["every_minutes"]
             state["break"] = schedule["break_minutes"]
+        else:
+            state["every"], state["break"] = 20, 3
+
+    #demo reminders, remove later: switch timing as soon as Settings changes
+    def follow_settings():
+        if demo_timing(settings) == state.get("demo"):
+            return False
+
+        apply_schedule()
+
+        #next reminder at the next full interval of activity
+        state["next"] = int(total_seconds() // (state["every"] * 60)) + 1
+        return True
 
     #My Plan passes today's numbers whenever it redraws
     def set_today(today_limit, today_category, today_logged):
@@ -386,6 +433,8 @@ def build_tracker(page, prefs, settings, on_use_minutes, on_change):
         #schedule follows today's heat until the first reminder
         if state["next"] == 1:
             apply_schedule()
+        elif reminder is None and follow_settings():
+            page.run_task(persist)
 
         render()
 
