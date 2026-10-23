@@ -27,6 +27,9 @@ LINE_COLORS = {
 
 MUTED = "#64748B"
 
+#shading for the lower-heat window
+WINDOW_COLOR = "#15803D"
+
 #drawing area inside the SVG, about one inch tall on screen;
 #the width follows the screen
 HEIGHT = 100
@@ -82,8 +85,8 @@ def smooth_path(points):
     return " ".join(path)
 
 
-def build_peak_chart(hourly, thresholds_f, now=None, width=320):
-    "return SVG bytes and a short description of today's curve"
+def build_peak_chart(hourly, thresholds_f, now=None, width=320, window=None):
+    "return SVG bytes and a short description of the day's curve"
 
     width = round(min(max(width, 220), 2400), 1)
     right = width - RIGHT_MARGIN
@@ -154,6 +157,34 @@ def build_peak_chart(hourly, thresholds_f, now=None, width=320):
             f'<text x="{x:.1f}" y="{BOTTOM + 13}" font-size="9" '
             f'text-anchor="middle" fill="{MUTED}">{hour_label(hour)}</text>'
         )
+
+    #lower-heat window as a shaded, dashed-edge range
+    window_text = ""
+
+    if window is not None:
+        start, end = window
+        first = start.hour + start.minute / 60
+        last = 24 if end.date() > start.date() else end.hour + end.minute / 60
+        first, last = max(first, START_HOUR), min(last, END_HOUR)
+
+        if first < last:
+            x1, x2 = x_at(first), x_at(last)
+
+            shapes.append(
+                f'<rect x="{x1:.1f}" y="{TOP}" width="{x2 - x1:.1f}" '
+                f'height="{BOTTOM - TOP}" fill="{WINDOW_COLOR}" fill-opacity="0.16"/>'
+            )
+
+            for x in (x1, x2):
+                shapes.append(
+                    f'<line x1="{x:.1f}" y1="{TOP}" x2="{x:.1f}" y2="{BOTTOM}" '
+                    f'stroke="{WINDOW_COLOR}" stroke-width="1.2" stroke-dasharray="3 2"/>'
+                )
+
+            window_text = (
+                f" Lower heat from {hour_label(start.hour)} "
+                f"to {hour_label(end.hour)}."
+            )
 
     #temperature labels at the category cutoffs
     labels = [low, high] + [
@@ -239,7 +270,7 @@ def build_peak_chart(hourly, thresholds_f, now=None, width=320):
 
     description = (
         f"Estimated WBGT from 6 AM to 10 PM. Peak {peak_value:.1f} °F "
-        f"at {hour_label(peak_hour)}, {peak_name} category."
+        f"at {hour_label(peak_hour)}, {peak_name} category.{window_text}"
     )
 
     return svg.encode(), description

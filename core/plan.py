@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from core.rules import get_category
+from core.rules import get_category, load_rules
 from core.today import utc_time
 
 
@@ -91,6 +91,8 @@ def summarize_week(readings, location, now_utc=None):
             (time, reading, category)
         )
 
+    thresholds = load_rules()["sports"]["regions"][str(location["region"])]["minimums"]
+
     results = []
 
     for i in range(7):
@@ -115,7 +117,13 @@ def summarize_week(readings, location, now_utc=None):
             "peak_time": peak[0],
             "peak_wbgt": peak[1]["wbgt"],
             "peak_category": peak[2],
-            "window": find_window(daytime)
+            "window": find_window(daytime),
+            #every hour of the day for the day chart
+            "hourly": [
+                {"time": time, "wbgt": reading["wbgt"], "category": category}
+                for time, reading, category in hours
+            ],
+            "thresholds_f": thresholds
         })
 
     return results

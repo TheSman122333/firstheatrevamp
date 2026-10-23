@@ -7,6 +7,7 @@ from pathlib import Path
 import flet as ft
 
 from core.today import fetch_today_summary
+from views.brand import brand_header
 from views.peak_chart import LINE_COLORS, ORDER, build_peak_chart
 
 
@@ -31,7 +32,6 @@ SCORE_COLORS = {
 #background activity art per category: file, accent color, description
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 ART_DIR = ASSETS / "activity"
-LOGO = (ASSETS / "logo" / "firstheat-mark.svg").read_bytes()
 
 ACTIVITY_ART = {
     "green": ("kids-jump-rope.svg", "#16A34A", "Kids playing jump rope outside"),
@@ -413,51 +413,7 @@ def build_home(page, settings, on_emergency, simulator=()):
     #home layout
     screen = ft.SafeArea(expand=True, content=ft.Column(
             controls=[
-                #logo: sun with a "1" for First, heartbeat line for safety
-                ft.Row(
-                    controls=[
-                        ft.Image(
-                            src=LOGO,
-                            width=56,
-                            height=56,
-                            semantics_label="FirstHeat logo"
-                        ),
-                        ft.Column(
-                            controls=[
-                                ft.Text(
-                                    spans=[
-                                        ft.TextSpan(
-                                            "First",
-                                            style=ft.TextStyle(color=DARK)
-                                        ),
-                                        ft.TextSpan(
-                                            "Heat",
-                                            style=ft.TextStyle(color="#EA580C")
-                                        )
-                                    ],
-                                    size=36,
-                                    weight=ft.FontWeight.W_900,
-                                    style=ft.TextStyle(
-                                        height=1.05,
-                                        letter_spacing=-0.5
-                                    )
-                                ),
-                                ft.Container(
-                                    padding=ft.Padding.only(left=12),
-                                    content=ft.Text(
-                                        "Your adaptive heat-safety planner",
-                                        size=15,
-                                        color=MUTED,
-                                        italic=True
-                                    )
-                                )
-                            ],
-                            spacing=0,
-                            expand=True
-                        )
-                    ],
-                    spacing=12
-                ),
+                brand_header(),
                 emergency_button,
                 status,
                 loading,
