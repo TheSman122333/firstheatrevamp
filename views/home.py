@@ -156,11 +156,11 @@ def build_home(page, settings, on_emergency, simulator=()):
     )
 
     #chosen city, top left of the score panel
-    city_icon = ft.Icon(ft.Icons.PLACE_OUTLINED, size=16)
+    city_icon = ft.Icon(ft.Icons.PLACE_OUTLINED, size=16, color=DARK)
     city = ft.Text(
         "",
         size=14,
-        weight=ft.FontWeight.W_700,
+        color=DARK,
         no_wrap=True,
         overflow=ft.TextOverflow.ELLIPSIS,
         expand=True
@@ -169,6 +169,7 @@ def build_home(page, settings, on_emergency, simulator=()):
     refresh_button = ft.IconButton(
         icon=ft.Icons.REFRESH,
         icon_size=18,
+        icon_color=DARK,
         tooltip="Refresh",
         visual_density=ft.VisualDensity.COMPACT
     )
@@ -186,7 +187,7 @@ def build_home(page, settings, on_emergency, simulator=()):
     calculated = ft.Text(
         "",
         size=15,
-        weight=ft.FontWeight.W_600,
+        color=DARK,
         text_align=ft.TextAlign.CENTER
     )
 
@@ -675,7 +676,7 @@ def build_home(page, settings, on_emergency, simulator=()):
 
         info = get_category(wbgt_f, f"sports_{region}", unit="F")
         level = info["category"]
-        background, ink = CARD_COLORS[level]
+        background = CARD_COLORS[level][0]
 
         temperature.value = f"{wbgt_f:.1f}°F"
         temperature.color = SCORE_COLORS[level]
@@ -687,10 +688,7 @@ def build_home(page, settings, on_emergency, simulator=()):
         )
 
         calculated.value = label
-        calculated.color = ink
-
         city.value = ", ".join(part for part in (settings["name"], settings["state"]) if part)
-        city.color = city_icon.color = refresh_button.icon_color = ink
 
         guidance.value = info["guidance"]
         current_card.bgcolor = background
