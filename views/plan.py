@@ -354,7 +354,7 @@ def build_plan(page, settings):
             controls=[
                 brand_header(),
                 ft.Text(
-                    "7-day training plan",
+                    "7-day forecast",
                     size=22,
                     weight=ft.FontWeight.BOLD,
                     color=DARK

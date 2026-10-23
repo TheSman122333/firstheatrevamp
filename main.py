@@ -90,7 +90,7 @@ async def main(page: ft.Page):
             ),
             ft.NavigationBarDestination(
                 icon=ft.Icons.CALENDAR_MONTH,
-                label="Weekly"
+                label="Forecast"
             ),
             ft.NavigationBarDestination(
                 icon=ft.Icons.EVENT_NOTE_OUTLINED,
