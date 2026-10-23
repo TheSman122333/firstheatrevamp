@@ -144,6 +144,11 @@ def build_emergency(page, settings):
         color="#FFFFFF",
         bgcolor="#B91C1C",
         height=68,
+        expand=True,
+        style=ft.ButtonStyle(
+            text_style=ft.TextStyle(size=20, weight=ft.FontWeight.BOLD),
+            icon_size=26
+        ),
         action=ft.OpenUrl("tel:911"),
         on_click=lambda e: page.run_task(
             record, "911 button pressed — call not confirmed"
@@ -162,7 +167,8 @@ def build_emergency(page, settings):
                     weight=ft.FontWeight.BOLD,
                     color="#991B1B"
                 ),
-                call_button,
+                #full width so it is the easiest thing to tap
+                ft.Row(controls=[call_button]),
                 ft.Text(
                     "If the dialer doesn't open, call 911 directly. "
                     "Don't wait for this app."
