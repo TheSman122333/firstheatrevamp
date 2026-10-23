@@ -10,6 +10,8 @@ from zoneinfo import ZoneInfo
 
 import flet as ft
 
+from views.brand import brand_header
+
 
 CDC_SOURCE = "https://www.cdc.gov/niosh/heat-stress/about/illnesses.html"
 KSI_SOURCE = "https://koreystringer.institute.uconn.edu/heat-stroke/"
@@ -153,9 +155,10 @@ def build_emergency(page, settings):
         expand=True,
         content=ft.Column(
             controls=[
+                brand_header(),
                 ft.Text(
                     "Emergency",
-                    size=30,
+                    size=26,
                     weight=ft.FontWeight.BOLD,
                     color="#991B1B"
                 ),

@@ -4,6 +4,7 @@ import asyncio
 import flet as ft
 
 from core.geocoding import search_cities
+from views.brand import brand_header
 
 
 KSI_MAP = "https://www.recognizetorecover.org/s/Heat-Guidelines.pdf"
@@ -149,10 +150,12 @@ def build_settings(page, settings, on_save):
         expand=True,
         content=ft.Column(
             controls=[
+                brand_header(),
                 ft.Text(
                     "Settings",
-                    size=30,
-                    weight=ft.FontWeight.BOLD
+                    size=22,
+                    weight=ft.FontWeight.BOLD,
+                    color="#172033"
                 ),
                 selected,
                 ft.Text(

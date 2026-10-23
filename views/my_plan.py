@@ -215,12 +215,12 @@ def build_my_plan(page, settings, profile, on_save):
     history_area = ft.Column(spacing=12, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
 
     generate_button = ft.FilledButton(
-        content="Generate Personalized Plan",
+        content="Create Personalized Plan",
         icon=ft.Icons.AUTO_AWESOME,
         style=ft.ButtonStyle(bgcolor=BRAND_ORANGE, color="#FFFFFF")
     )
 
-    edit_button = ft.TextButton(content="Edit", icon=ft.Icons.EDIT_OUTLINED)
+    edit_button = ft.TextButton(content="Update", icon=ft.Icons.EDIT_OUTLINED)
 
     cached_week = None
     busy = False
@@ -275,7 +275,7 @@ def build_my_plan(page, settings, profile, on_save):
 
         profile_summary.controls = chips
         profile_summary.visible = not editing
-        edit_button.content = "Done" if editing else "Edit"
+        edit_button.content = "Done" if editing else "Update"
         edit_button.icon = ft.Icons.CHECK if editing else ft.Icons.EDIT_OUTLINED
 
     def toggle_edit(_event=None):
