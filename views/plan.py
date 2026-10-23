@@ -24,6 +24,13 @@ MUTED = "#64748B"
 
 EMPTY_SVG = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>'
 
+FOOTER = (
+    "Estimated WBGT from Open-Meteo and Liljegren. "
+    "Follow official guidance and local rules. "
+    "Heat risk also depends on activity, clothing "
+    "and acclimatization."
+)
+
 
 def time_label(when):
     return f"{when:%I %p}".lstrip("0")
@@ -140,12 +147,6 @@ def week_glance(week):
     return card(
         ft.Column(
             controls=[
-                ft.Text(
-                    "Week at a glance",
-                    size=19,
-                    weight=ft.FontWeight.BOLD,
-                    color=DARK
-                ),
                 ft.Text(
                     "Daily peak estimated WBGT · green dot = lower-heat window",
                     size=12,
@@ -281,18 +282,21 @@ def day_card(page, day, is_today, now):
 
 def build_plan(page, settings):
 
-    location = ft.Text("", color=MUTED)
     spinner = ft.ProgressRing(width=20, height=20, visible=False)
-    status = ft.Text("", color=MUTED)
+
+    #only shown when the forecast can't load
+    status = ft.Text("", color="#991B1B", visible=False)
+
+    footer = ft.Text("", color=MUTED, size=12)
 
     rows = ft.Column(
         spacing=12,
         horizontal_alignment=ft.CrossAxisAlignment.STRETCH
     )
 
-    refresh_button = ft.Button(
-        content="Refresh plan",
-        icon=ft.Icons.REFRESH
+    refresh_button = ft.IconButton(
+        icon=ft.Icons.REFRESH,
+        tooltip="Refresh forecast"
     )
 
     busy = False
@@ -307,12 +311,7 @@ def build_plan(page, settings):
         spinner.visible = True
         refresh_button.disabled = True
         rows.controls.clear()
-        status.value = "Loading seven-day forecast..."
-
-        location.value = (
-            f"{settings['name']}, {settings['state']} "
-            f"· Region {settings['region']}"
-        )
+        status.visible = False
 
         page.update()
 
@@ -332,14 +331,17 @@ def build_plan(page, settings):
                     day_card(page, day, index == 0, now)
                 )
 
-            status.value = (
-                "Hours shown in local time • "
-                "lower heat = Green or Yellow"
+            footer.value = (
+                f"Times shown in {now.tzname() or 'local time'}. "
+                "Lower-heat windows are 6 AM–8 PM hours below Orange "
+                "(Green or Yellow), not permission to exercise. "
+                f"{FOOTER}"
             )
 
         except Exception as exc:
             rows.controls.clear()
             status.value = f"Could not load the plan: {exc}"
+            status.visible = True
 
         finally:
             busy = False
@@ -353,30 +355,23 @@ def build_plan(page, settings):
     screen = ft.SafeArea(expand=True, content=ft.Column(
             controls=[
                 brand_header(),
-                ft.Text(
-                    "7-day forecast",
-                    size=22,
-                    weight=ft.FontWeight.BOLD,
-                    color=DARK
+                #title with refresh on the same line
+                ft.Row(
+                    controls=[
+                        ft.Text(
+                            "7-day forecast",
+                            size=22,
+                            weight=ft.FontWeight.BOLD,
+                            color=DARK,
+                            expand=True
+                        ),
+                        spinner,
+                        refresh_button
+                    ]
                 ),
-                location,
-                ft.Text(
-                    "Lower-heat windows are 6 AM–8 PM hours below "
-                    "Orange, not permission to exercise.",
-                    size=13,
-                    color=MUTED
-                ),
-                ft.Row([refresh_button, spinner]),
                 status,
                 rows,
-                ft.Text(
-                    "Estimated WBGT from Open-Meteo and Liljegren. "
-                    "Follow official guidance and local rules. "
-                    "Heat risk also depends on activity, clothing "
-                    "and acclimatization.",
-                    color=MUTED,
-                    size=12
-                )
+                footer
             ],
             spacing=12,
             scroll=ft.ScrollMode.AUTO,

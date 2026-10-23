@@ -866,7 +866,7 @@ def build_my_plan(page, settings, profile, on_save):
                     color=DARK
                 ),
                 ft.Text(
-                    "Build up heat time day by day. Log each day you "
+                    "Build heat exposure progressively. Log each day you "
                     "train or work and the plan adjusts.",
                     size=13,
                     color=MUTED
