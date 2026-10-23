@@ -11,6 +11,7 @@ from core.rules import next_category_if_close
 from views.brand import brand_header
 from views.peak_chart import LINE_COLORS, WINDOW_COLOR
 from views.sliders import side_gradient, slider_block
+from views.tracker import DONE_GREEN, MISSED_RED, build_tracker, reminder_dots
 
 
 DARK = "#172033"
@@ -170,7 +171,7 @@ def day_alerts(day, role):
     return banners
 
 
-def build_my_plan(page, settings, profile, on_save):
+def build_my_plan(page, settings, profile, on_save, prefs):
 
     #personal settings as sliders
     role = ft.Slider(min=0, max=1, divisions=1, value=role_index(profile["role"]))
@@ -230,6 +231,18 @@ def build_my_plan(page, settings, profile, on_save):
     editing = not profile["sessions"]
     selected = 0
     log_minutes = 60
+
+    #tracked time goes into Log today
+    def use_tracked_minutes(minutes):
+        nonlocal log_minutes
+
+        log_minutes = min(minutes, 1440)
+        status.value = f"Added {log_minutes} min from the tracker to Log today."
+        display()
+
+    tracker_card, tracker = build_tracker(
+        page, prefs, settings, use_tracked_minutes, lambda: display()
+    )
 
     def chosen_minutes():
         return int(round(shift.value / SHIFT_STEP) * SHIFT_STEP)
@@ -420,30 +433,81 @@ def build_my_plan(page, settings, profile, on_save):
 
         title = f"{day['date']:%a, %b %d}"
 
-        ring = ft.Stack(
-            width=104,
-            height=104,
-            alignment=ft.Alignment.CENTER,
+        #what was logged for this day, and the break reminders around it
+        day_key = day["date"].isoformat()
+        day_sessions = [item for item in profile["sessions"] if item["day"] == day_key]
+        logged_minutes = sum(item["minutes"] for item in day_sessions)
+        done = sum(item.get("reminders", {}).get("done", 0) for item in day_sessions)
+        missed = sum(item.get("reminders", {}).get("missed", 0) for item in day_sessions)
+
+        #live counts while today's activity is still being tracked
+        if selected == 0 and not day_sessions:
+            done, missed = tracker["counts"]()
+
+        if logged_minutes:
+            over = limit and logged_minutes > limit
+
+            facts.append(fact(
+                ft.Icons.CHECK_CIRCLE_OUTLINE,
+                f"Logged {logged_minutes} of {limit} min" + (" (over the limit)" if over else ""),
+                MISSED_RED if over else DONE_GREEN
+            ))
+
+        dial = [
+            ft.ProgressRing(
+                value=ring_value,
+                width=120,
+                height=120,
+                stroke_width=10,
+                color=BRAND_ORANGE,
+                bgcolor="#F1F5F9",
+                stroke_cap=ft.StrokeCap.ROUND
+            )
+        ]
+
+        #green band inside the planned ring: share of today's plan done
+        if logged_minutes and limit:
+            dial.append(ft.ProgressRing(
+                value=min(logged_minutes / limit, 1),
+                width=96,
+                height=96,
+                stroke_width=8,
+                color=DONE_GREEN,
+                bgcolor="#ECFDF5",
+                stroke_cap=ft.StrokeCap.ROUND
+            ))
+
+        dial.append(ft.Column(
             controls=[
-                ft.ProgressRing(
-                    value=ring_value,
-                    width=104,
-                    height=104,
-                    stroke_width=10,
-                    color=BRAND_ORANGE,
-                    bgcolor="#F1F5F9",
-                    stroke_cap=ft.StrokeCap.ROUND
-                ),
-                ft.Column(
-                    controls=[
-                        ft.Text(ring_big, size=22, weight=ft.FontWeight.W_900, color=DARK),
-                        ft.Text(ring_small, size=11, color=MUTED)
-                    ],
-                    spacing=0,
-                    tight=True,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER
-                )
+                ft.Text(ring_big, size=22, weight=ft.FontWeight.W_900, color=DARK),
+                ft.Text(ring_small, size=10.5, color=MUTED)
+            ],
+            spacing=0,
+            tight=True,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER
+        ))
+
+        ring_controls = [
+            ft.Stack(
+                width=120,
+                height=120,
+                alignment=ft.Alignment.CENTER,
+                controls=dial
+            )
+        ]
+
+        #green dot per break taken, red dot per reminder missed
+        if done + missed:
+            ring_controls += [
+                ft.Container(width=120, content=reminder_dots(done, missed, 8)),
+                ft.Text(f"{done} of {done + missed} breaks", size=11, color=MUTED)
             ]
+
+        ring = ft.Column(
+            controls=ring_controls,
+            spacing=6,
+            tight=True,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER
         )
 
         controls = [
@@ -638,7 +702,7 @@ def build_my_plan(page, settings, profile, on_save):
         show_summary()
         history_area.controls = history_controls()
 
-        plan_card.visible = log_card.visible = cached_week is not None
+        plan_card.visible = log_card.visible = tracker_card.visible = cached_week is not None
 
         if cached_week is None:
             plan_area.controls = []
@@ -650,6 +714,12 @@ def build_my_plan(page, settings, profile, on_save):
             profile,
             cached_week,
             settings["region"]
+        )
+
+        tracker["set_today"](
+            days[0]["limit_minutes"],
+            days[0]["category"],
+            days[0]["completed"]
         )
 
         plan_area.controls = [
@@ -743,10 +813,18 @@ def build_my_plan(page, settings, profile, on_save):
                 "heat_wave": today["heat_wave_proxy"]
             }
 
+            done, missed = tracker["counts"]()
+
+            if done + missed:
+                record["reminders"] = {"done": done, "missed": missed}
+
             await on_save({
                 **profile,
                 "sessions": profile["sessions"] + [record]
             })
+
+            #tracker starts fresh once today is logged
+            await tracker["clear"]()
 
             status.value = "Today's attendance saved."
 
@@ -836,7 +914,7 @@ def build_my_plan(page, settings, profile, on_save):
 
         except Exception as error:
             cached_week = None
-            plan_card.visible = log_card.visible = False
+            plan_card.visible = log_card.visible = tracker_card.visible = False
             status.value = f"Could not load your plan: {error}"
 
         finally:
@@ -877,7 +955,10 @@ def build_my_plan(page, settings, profile, on_save):
 
     plan_card = card([plan_area])
     log_card = card([log_area])
-    plan_card.visible = log_card.visible = False
+    plan_card.visible = log_card.visible = tracker_card.visible = False
+
+    #resume a tracker that was running before a reconnect
+    page.run_task(tracker["restore"])
 
     #page layout
     screen = ft.SafeArea(
@@ -900,6 +981,7 @@ def build_my_plan(page, settings, profile, on_save):
                 profile_card,
                 status,
                 plan_card,
+                tracker_card,
                 log_card,
                 card([history_area]),
                 ft.Text(

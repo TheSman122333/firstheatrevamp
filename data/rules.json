@@ -49,7 +49,15 @@
     },
     "boundary_note": "Published chart gaps are conservatively assigned to the more cautious category. Stored minimums are inclusive (>=), including black; the source prints black as greater than its cutoff.",
     "caution_margin_f": 1.0,
-    "caution_note": "Estimates within this many degrees F below the next category's minimum are flagged 'could be higher', because forecast-based WBGT can be off by about a degree. Measured on-site readings are not flagged."
+    "caution_note": "Estimates within this many degrees F below the next category's minimum are flagged 'could be higher', because forecast-based WBGT can be off by about a degree. Measured on-site readings are not flagged.",
+    "break_schedule": {
+      "green": {"every_minutes": 20, "break_minutes": 3},
+      "yellow": {"every_minutes": 20, "break_minutes": 4},
+      "orange": {"every_minutes": 15, "break_minutes": 4},
+      "red": {"every_minutes": 15, "break_minutes": 4},
+      "black": {"every_minutes": 15, "break_minutes": 4}
+    },
+    "break_note": "Turns the guidance above into reminder times: three breaks per hour is one every 20 minutes, four per hour is one every 15 minutes. Black keeps the most frequent schedule for indoor or essential activity only, since outdoor training is not recommended."
   },
   "workers": {
     "name": "OSHA table adapted from NIOSH 2016 heat guidance",

@@ -9,6 +9,8 @@ from zoneinfo import ZoneInfo
 SETTINGS_KEY = "firstheat.settings.v1"
 PERSON_KEY = "firstheat.me.v1"
 
+TRACKER_KEY = "firstheat.tracker.v1"
+
 #bump the version when the disclaimer text changes so it shows again
 DISCLAIMER_KEY = "firstheat.disclaimer"
 DISCLAIMER_VERSION = "2026.1"
@@ -130,6 +132,16 @@ def check_person_data(person):
         if type(session.get("heat_wave")) is not bool:
             raise ValueError("INVALID HEAT-WAVE SETTING")
 
+        #optional break reminder results from the activity tracker
+        reminders = session.get("reminders")
+
+        if reminders is not None:
+            if not isinstance(reminders, dict) or any(
+                type(reminders.get(key)) is not int or reminders[key] < 0
+                for key in ("done", "missed")
+            ):
+                raise ValueError("INVALID REMINDER RECORD")
+
     return person
 
 
@@ -184,3 +196,47 @@ async def save_disclaimer(prefs):
 
     if await prefs.set(DISCLAIMER_KEY, DISCLAIMER_VERSION) is False:
         raise RuntimeError("Could not save the disclaimer choice.")
+
+
+#activity tracker, kept so a reconnect can pick up where it left off
+def check_tracker(state):
+
+    if not isinstance(state, dict):
+        raise ValueError("INVALID TRACKER")
+
+    date.fromisoformat(state["day"])
+
+    for key in ("elapsed", "every", "break", "next", "done", "missed"):
+        value = state[key]
+
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+            raise ValueError("INVALID TRACKER")
+
+    started = state.get("started")
+
+    if started is not None and (isinstance(started, bool) or not isinstance(started, (int, float))):
+        raise ValueError("INVALID TRACKER")
+
+    return state
+
+
+async def load_tracker(prefs):
+
+    try:
+        saved = await prefs.get(TRACKER_KEY)
+
+        if saved:
+            return check_tracker(json.loads(saved))
+
+    except (ValueError, TypeError, KeyError, RuntimeError):
+        pass
+
+    return None
+
+
+async def save_tracker(prefs, state):
+
+    check_tracker(state)
+
+    if await prefs.set(TRACKER_KEY, json.dumps(state)) is False:
+        raise RuntimeError("Could not save the tracker.")

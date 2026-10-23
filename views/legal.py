@@ -28,7 +28,8 @@ SAFETY = (
 
 PRIVACY = [
     ("What we collect", "Nothing that identifies you. There are no accounts, names or emails."),
-    ("Stored on your device", "Your city, region, activity profile and the days you log. "
+    ("Stored on your device", "Your city, region, activity profile, today's activity timer "
+     "and the days you log, with how many break reminders you took or missed. "
      "Delete them with Reset on My Plan or by clearing your browser data."),
     ("While you use the app", "What you enter is processed on our server to run the app "
      "and is not saved. The emergency log is never saved or sent anywhere."),

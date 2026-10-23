@@ -139,3 +139,17 @@ def next_category_if_close(wbgt, rule_set, unit="C"):
             return name if cutoff - wbgt_f <= margin + 1e-9 else None
 
     return None
+
+
+def break_schedule(category):
+    """Reminder spacing and break length for a sports heat category.
+
+    For example, "yellow" gives {"every_minutes": 20, "break_minutes": 4}.
+    """
+
+    schedule = load_rules()["sports"]["break_schedule"].get(category)
+
+    if schedule is None:
+        raise ValueError(f"Unknown heat category: {category}")
+
+    return schedule

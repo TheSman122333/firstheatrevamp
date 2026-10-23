@@ -50,7 +50,7 @@ async def main(page: ft.Page):
     )
     weekly, refresh_weekly = build_plan(page, settings)
     my_plan, refresh_my_plan = build_my_plan(
-        page, settings, person, update_person
+        page, settings, person, update_person, prefs
     )
 
     emergency = build_emergency(page, settings)
