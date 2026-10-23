@@ -392,7 +392,8 @@ def build_home(page, settings, on_emergency, simulator=()):
             source.visible = True
             guideline_link.url = today["rule_source"]
             guideline_link.visible = True
-            status.value = "Updated · times shown locally"
+            #zone of the chosen city, e.g. EST/EDT, CST/CDT, PST/PDT
+            status.value = f"Updated · times shown in {now.tzname() or 'local time'}"
 
         except Exception as exc:
             error.value = f"Could not load forecast: {exc}"
