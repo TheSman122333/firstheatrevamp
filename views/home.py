@@ -288,19 +288,12 @@ def build_home(page, settings, on_emergency, simulator=()):
 
     source = ft.Text("", size=12, color=MUTED, visible=False)
 
-    guideline_link = ft.TextButton(
-        content="Regional heat guidelines",
-        visible=False
-    )
-
-    weather_link = ft.TextButton(
-        content="Open-Meteo",
-        url="https://open-meteo.com/"
-    )
-
-    refresh_button = ft.Button(
-        content="Refresh",
-        icon=ft.Icons.REFRESH
+    #small refresh icon beside the update time
+    refresh_button = ft.IconButton(
+        icon=ft.Icons.REFRESH,
+        icon_size=20,
+        icon_color=MUTED,
+        tooltip="Refresh"
     )
 
     busy = False
@@ -319,7 +312,6 @@ def build_home(page, settings, on_emergency, simulator=()):
         current_card.visible = False
         peak_card.visible = False
         source.visible = False
-        guideline_link.visible = False
         refresh_button.disabled = True
 
         page.update()
@@ -390,8 +382,6 @@ def build_home(page, settings, on_emergency, simulator=()):
             )
 
             source.visible = True
-            guideline_link.url = today["rule_source"]
-            guideline_link.visible = True
             #zone of the chosen city, e.g. EST/EDT, CST/CDT, PST/PDT
             status.value = f"Updated · times shown in {now.tzname() or 'local time'}"
 
@@ -416,21 +406,17 @@ def build_home(page, settings, on_emergency, simulator=()):
             controls=[
                 brand_header(),
                 emergency_button,
-                status,
+                ft.Row(
+                    controls=[status, refresh_button],
+                    spacing=0,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER
+                ),
                 loading,
                 error,
                 current_card,
                 peak_card,
                 simulator_card,
-                ft.Row(controls=[refresh_button]),
                 source,
-                ft.Row(
-                    controls=[
-                        weather_link,
-                        guideline_link
-                    ],
-                    wrap=True
-                ),
                 ft.Text(
                     "Estimated WBGT, not an on-site measurement. "
                     "WBGT combines temperature, humidity, sun and wind. It uses a different scale than air temperature or a weather app's 'feels like', so don't compare them. "

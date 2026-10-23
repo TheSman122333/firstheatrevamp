@@ -8,6 +8,7 @@ from views.brand import brand_header
 
 
 KSI_MAP = "https://www.recognizetorecover.org/s/Heat-Guidelines.pdf"
+OPEN_METEO = "https://open-meteo.com/"
 
 
 def build_settings(page, settings, on_save):
@@ -182,6 +183,29 @@ def build_settings(page, settings, on_save):
                     "New locations default to Region 1. "
                     "Check the map to find your actual region. "
                     "School and state rules may be stricter.",
+                    color="#64748B",
+                    size=12
+                ),
+                ft.Divider(),
+                #where the numbers and rules come from
+                ft.Text(
+                    "Data & sources",
+                    size=20,
+                    weight=ft.FontWeight.BOLD
+                ),
+                ft.TextButton(
+                    content="Open-Meteo weather data",
+                    icon=ft.Icons.CLOUD_OUTLINED,
+                    url=OPEN_METEO
+                ),
+                ft.TextButton(
+                    content="Regional heat guidelines (KSI / U.S. Soccer)",
+                    icon=ft.Icons.MENU_BOOK_OUTLINED,
+                    url=KSI_MAP
+                ),
+                ft.Text(
+                    "WBGT is estimated with the Liljegren method from "
+                    "Open-Meteo hourly weather. It is not an on-site measurement.",
                     color="#64748B",
                     size=12
                 )
