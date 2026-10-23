@@ -5,6 +5,7 @@ import flet as ft
 
 from core.geocoding import search_cities
 from views.brand import brand_header
+from views.legal import about_section
 
 
 KSI_MAP = "https://www.recognizetorecover.org/s/Heat-Guidelines.pdf"
@@ -208,7 +209,9 @@ def build_settings(page, settings, on_save):
                     "Open-Meteo hourly weather. It is not an on-site measurement.",
                     color="#64748B",
                     size=12
-                )
+                ),
+                ft.Divider(),
+                *about_section()
             ],
             spacing=12,
             scroll=ft.ScrollMode.AUTO,

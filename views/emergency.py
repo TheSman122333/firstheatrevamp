@@ -171,7 +171,8 @@ def build_emergency(page, settings):
                 ft.Row(controls=[call_button]),
                 ft.Text(
                     "If the dialer doesn't open, call 911 directly. "
-                    "Don't wait for this app."
+                    "Don't wait for this app. This app does not contact "
+                    "emergency services."
                 ),
                 ft.Text(
                     "If you suspect heat stroke",

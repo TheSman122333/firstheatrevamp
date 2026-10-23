@@ -9,6 +9,10 @@ from zoneinfo import ZoneInfo
 SETTINGS_KEY = "firstheat.settings.v1"
 PERSON_KEY = "firstheat.me.v1"
 
+#bump the version when the disclaimer text changes so it shows again
+DISCLAIMER_KEY = "firstheat.disclaimer"
+DISCLAIMER_VERSION = "2026.1"
+
 
 #location settings
 def default_settings():
@@ -163,3 +167,20 @@ async def save_person(prefs, person):
 
     if saved is False:
         raise RuntimeError("Could not save attendance.")
+
+
+#first-launch safety disclaimer
+async def load_disclaimer(prefs):
+    "True once this version of the disclaimer was accepted on this device"
+
+    #show it again if browser storage isn't available
+    try:
+        return await prefs.get(DISCLAIMER_KEY) == DISCLAIMER_VERSION
+    except RuntimeError:
+        return False
+
+
+async def save_disclaimer(prefs):
+
+    if await prefs.set(DISCLAIMER_KEY, DISCLAIMER_VERSION) is False:
+        raise RuntimeError("Could not save the disclaimer choice.")

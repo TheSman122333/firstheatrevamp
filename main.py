@@ -2,13 +2,17 @@
 
 import flet as ft
 
-from storage import load_settings, save_settings, load_person, save_person
+from storage import (
+    load_settings, save_settings, load_person, save_person,
+    load_disclaimer, save_disclaimer
+)
 from views.home import build_home
 from views.plan import build_plan
 from views.my_plan import build_my_plan
 from views.settings import build_settings
 from views.emergency import build_emergency
 from views.developer_mode import build_developer_mode
+from views.legal import disclaimer_dialog
 
 
 async def main(page: ft.Page):
@@ -113,6 +117,19 @@ async def main(page: ft.Page):
 
     page.add(home)
     page.run_task(refresh_home)
+
+    #safety disclaimer on first launch
+    if not await load_disclaimer(prefs):
+
+        async def accept(_event=None):
+            try:
+                await save_disclaimer(prefs)
+            except RuntimeError:
+                pass
+
+            page.pop_dialog()
+
+        page.show_dialog(disclaimer_dialog(accept))
 
 
 if __name__ == "__main__":
