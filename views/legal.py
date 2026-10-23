@@ -54,7 +54,11 @@ TERMS = [
 
 #name, what it is, license, link
 CREDITS = [
-    ("Open-Meteo", "Weather data", "CC BY 4.0", "https://open-meteo.com/"),
+    ("Open-Meteo", "Weather, UV and air quality data", "CC BY 4.0", "https://open-meteo.com/"),
+    ("Copernicus CAMS", "Air quality data (via Open-Meteo)",
+     "Copernicus license, attribution required", "https://atmosphere.copernicus.eu/"),
+    ("U.S. EPA", "UV Index and Air Quality Index scales", "Public guidance",
+     "https://www.airnow.gov/aqi/aqi-basics/"),
     ("lwbgt", "WBGT calculation (Liljegren method)",
      "Apache-2.0, includes UChicago Argonne WBGT code", "https://pypi.org/project/lwbgt/"),
     ("Flet", "App framework", "Apache-2.0", "https://flet.dev/"),

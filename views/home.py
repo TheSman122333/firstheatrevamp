@@ -1,11 +1,13 @@
 #Homepage: a brief display of today
 
 import asyncio
+import re
 from datetime import datetime
 from pathlib import Path
 
 import flet as ft
 
+from core.conditions import fetch_conditions
 from core.rules import get_category, next_category_if_close
 from core.today import fetch_today_summary
 from views.brand import brand_header
@@ -48,6 +50,31 @@ DANGER = ("orange", "red", "black")
 MUTED = "#64748B"
 DARK = "#172033"
 
+#text colors for UV index and air quality levels
+LEVEL_COLORS = {
+    "low": "#15803D",
+    "good": "#15803D",
+    "moderate": "#A16207",
+    "high": "#C2410C",
+    "sensitive": "#C2410C",
+    "very_high": "#B91C1C",
+    "unhealthy": "#B91C1C",
+    "extreme": "#7E22CE",
+    "very_unhealthy": "#7E22CE",
+    "hazardous": "#7F1D1D"
+}
+
+#short labels that fit a small tile
+SHORT_LABELS = {"sensitive": "Sensitive groups", "very_unhealthy": "Very unhealthy"}
+
+#tallest the activity picture gets, and its widest
+ART_HEIGHT = 242
+ART_WIDTH = 360
+
+#conditions tiles: four across when each gets at least this much room
+TILE_MIN_WIDTH = 120
+TILE_GAP = 8
+
 #on-site meter readings count for this long, and must look like real WBGT
 READING_MINUTES = 60
 READING_MIN_F, READING_MAX_F = 32, 120
@@ -58,7 +85,44 @@ def activity_art(level):
     name, accent, label = ACTIVITY_ART[level]
     svg = (ART_DIR / name).read_text(encoding="utf-8")
 
-    return svg.replace("currentColor", accent).encode(), label
+    #width / height from the viewBox, to size the space for it
+    _, _, width, height = map(float, re.search(r'viewBox="([^"]+)"', svg).group(1).split())
+
+    return svg.replace("currentColor", accent).encode(), label, width / height
+
+
+def condition_tile(icon, icon_color, name):
+    "small tile: icon, value, what it is, and a short note"
+
+    symbol = ft.Icon(icon, size=18, color=icon_color)
+    value = ft.Text("--", size=17, weight=ft.FontWeight.W_800, color=DARK, no_wrap=True)
+    note = ft.Text("", size=11, weight=ft.FontWeight.W_600, color=MUTED)
+
+    tile = ft.Container(
+        width=140,
+        bgcolor=ft.Colors.with_opacity(0.6, "#FFFFFF"),
+        border_radius=12,
+        padding=ft.Padding.only(left=10, top=8, right=8, bottom=8),
+        content=ft.Row(
+            controls=[
+                symbol,
+                ft.Column(
+                    controls=[
+                        value,
+                        ft.Text(name, size=11, color=MUTED, no_wrap=True),
+                        note
+                    ],
+                    spacing=0,
+                    tight=True,
+                    expand=True
+                )
+            ],
+            spacing=8,
+            vertical_alignment=ft.CrossAxisAlignment.START
+        )
+    )
+
+    return tile, symbol, value, note
 
 
 def build_home(page, settings, on_emergency, simulator=()):
@@ -126,56 +190,109 @@ def build_home(page, settings, on_emergency, simulator=()):
     )
 
     #activity picture with the score on top
-    art_svg, art_label = activity_art("green")
+    art_svg, art_label, art_ratio = activity_art("green")
 
     #width cap keeps the picture phone-sized on wide screens
     art = ft.Image(
         src=art_svg,
         fit=ft.BoxFit.CONTAIN,
-        width=360,
+        width=ART_WIDTH,
         semantics_label=art_label
+    )
+
+    #current conditions under the score
+    air_tile, _, air_value, air_note = condition_tile(ft.Icons.THERMOSTAT, "#EA580C", "Air temp")
+    humidity_tile, _, humidity_value, humidity_note = condition_tile(
+        ft.Icons.WATER_DROP_OUTLINED, "#0284C7", "Humidity"
+    )
+    uv_tile, uv_icon, uv_value, uv_note = condition_tile(ft.Icons.WB_SUNNY_OUTLINED, MUTED, "UV index")
+    aqi_tile, aqi_icon, aqi_value, aqi_note = condition_tile(ft.Icons.AIR, MUTED, "Air quality")
+
+    tiles = [air_tile, humidity_tile, uv_tile, aqi_tile]
+
+    conditions = ft.Container(
+        margin=ft.Margin.only(top=10),
+        visible=False,
+        content=ft.Row(
+            controls=tiles,
+            spacing=TILE_GAP,
+            run_spacing=TILE_GAP,
+            wrap=True,
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.START
+        )
     )
 
     #frosted panel keeps the score readable over the picture
     glass = ft.Container(
-        left=14,
-        right=14,
-        top=14,
+        margin=ft.Margin.only(left=14, top=14, right=14),
         padding=ft.Padding.only(left=8, top=10, right=8, bottom=10),
         border_radius=18,
         blur=ft.Blur(10, 10),
         content=ft.Column(
             controls=[
                 temperature,
-                calculated
+                calculated,
+                conditions
             ],
             spacing=0,
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH
         )
     )
 
+    #the picture sits under the panel, and the space for it matches its height
+    art_box = ft.Container(
+        left=12,
+        right=12,
+        bottom=8,
+        height=ART_HEIGHT,
+        alignment=ft.Alignment.BOTTOM_CENTER,
+        content=art
+    )
+
+    art_space = ft.Container(height=ART_HEIGHT + 24)
+    hero_width = None
+
+    def size_art():
+        if hero_width is None:
+            return
+
+        drawn = round(min(ART_HEIGHT, min(hero_width - 24, ART_WIDTH) / art_ratio))
+        art_box.height = drawn
+        art_space.height = drawn + 24
+
     def fit_number(event):
+        nonlocal hero_width
+
+        hero_width = event.width
+
         #shrink the number on narrow screens so it stays on one line
-        size = round(max(40, min(80, (event.width - 44) / 4.2)))
+        temperature.size = round(max(40, min(80, (event.width - 44) / 4.2)))
 
-        if size != temperature.size:
-            temperature.size = size
-            page.update()
+        #tiles: four across on wide screens, two by two on phones
+        #(room inside the panel's margins, padding and border)
+        room = event.width - 28 - 16 - 2 - 1
+        columns = 4 if room >= 4 * TILE_MIN_WIDTH + 3 * TILE_GAP else 2
+        width = int((room - (columns - 1) * TILE_GAP) / columns)
 
+        for tile in tiles:
+            tile.width = width
+
+        size_art()
+        page.update()
+
+    #the panel sets the height, and the picture fills the space under it
     hero = ft.Stack(
-        height=400,
         size_change_interval=100,
         on_size_change=fit_number,
         controls=[
-            ft.Container(
-                left=12,
-                right=12,
-                top=150,
-                bottom=8,
-                alignment=ft.Alignment.BOTTOM_CENTER,
-                content=art
-            ),
-            glass
+            art_box,
+            ft.Column(
+                controls=[glass, art_space],
+                spacing=0,
+                tight=True,
+                horizontal_alignment=ft.CrossAxisAlignment.STRETCH
+            )
         ]
     )
 
@@ -227,7 +344,8 @@ def build_home(page, settings, on_emergency, simulator=()):
         controls=[
             ft.Text(
                 "Have a WBGT meter? Enter an on-site reading to use it instead "
-                f"of the estimate. It applies for {READING_MINUTES} minutes.",
+                "of the estimate. It also adjusts today's chart, and applies for "
+                f"{READING_MINUTES} minutes.",
                 size=13,
                 color=MUTED
             ),
@@ -280,6 +398,16 @@ def build_home(page, settings, on_emergency, simulator=()):
 
     #todays peak
     peak_text = ft.Text("", size=17, color=DARK)
+
+    #shown while an on-site reading recolors the chart
+    adjust_text = ft.Text("", size=13, color="#166534", expand=True)
+
+    adjust_note = ft.Row(
+        controls=[ft.Icon(ft.Icons.TUNE, size=16, color="#166534"), adjust_text],
+        spacing=6,
+        vertical_alignment=ft.CrossAxisAlignment.START,
+        visible=False
+    )
 
     #hourly curve, 6 AM to 10 PM, redrawn to fill the card width
     peak_chart = ft.Image(
@@ -352,12 +480,13 @@ def build_home(page, settings, on_emergency, simulator=()):
                     content=ft.Column(
                         controls=[
                             ft.Text(
-                                "Today's peak",
+                                "Today's WBGT index",
                                 size=19,
                                 weight=ft.FontWeight.BOLD,
                                 color=DARK
                             ),
-                            peak_text
+                            peak_text,
+                            adjust_note
                         ]
                     )
                 ),
@@ -393,6 +522,47 @@ def build_home(page, settings, on_emergency, simulator=()):
 
     busy = False
 
+    #air temperature, humidity, UV and air quality tiles
+    def show_conditions(now):
+        conditions.visible = now is not None
+
+        if now is None:
+            return
+
+        air_value.value = "--" if now["temperature_f"] is None else f"{now['temperature_f']:.0f}°F"
+        air_note.value = "" if now["high_f"] is None else f"High {now['high_f']:.0f}°"
+
+        humidity_value.value = "--" if now["humidity"] is None else f"{now['humidity']:.0f}%"
+        humidity_note.value = "" if now["dew_point_f"] is None else f"Dew pt {now['dew_point_f']:.0f}°"
+
+        if now["uv_index"] is None:
+            uv_value.value, uv_note.value = "--", "Unavailable"
+            uv_value.color = uv_note.color = uv_icon.color = MUTED
+        else:
+            color = LEVEL_COLORS[now["uv_level"]]
+            uv_value.value = f"{int(now['uv_index'] + 0.5)}"
+            uv_note.value = now["uv_label"]
+            uv_value.color = uv_note.color = uv_icon.color = color
+
+        if now["aqi"] is None:
+            aqi_value.value, aqi_note.value = "--", "Unavailable"
+            aqi_value.color = aqi_note.color = aqi_icon.color = MUTED
+            aqi_tile.tooltip = None
+        else:
+            color = LEVEL_COLORS[now["aqi_level"]]
+            aqi_value.value = f"{int(now['aqi'] + 0.5)}"
+            aqi_note.value = SHORT_LABELS.get(now["aqi_level"], now["aqi_label"])
+            aqi_value.color = aqi_note.color = aqi_icon.color = color
+            aqi_tile.tooltip = f"US AQI {int(now['aqi'] + 0.5)}: {now['aqi_label']}" + (
+                f" · PM2.5 {now['pm2_5']:.0f} µg/m³" if now["pm2_5"] is not None else ""
+            )
+
+    async def load_conditions():
+        try:
+            return await asyncio.to_thread(fetch_conditions, settings.copy())
+        except Exception:
+            return None
+
     #latest forecast summary, when it was calculated, and any meter reading
     last_today = None
     calculated_at = None
@@ -406,16 +576,75 @@ def build_home(page, settings, on_emergency, simulator=()):
         reading_message.color = color
         reading_message.visible = bool(text)
 
+    #peak and chart; an on-site reading shifts every hour by its difference
+    def show_peak(offset_f):
+        nonlocal chart_data
+
+        rule_set = f"sports_{last_today['region']}"
+        measured = reading is not None
+
+        def level_at(wbgt_f):
+            return get_category(wbgt_f, rule_set, unit="F")["category"]
+
+        peak_f = last_today["peak_wbgt"] * 9 / 5 + 32 + offset_f
+
+        #flagged when it sits just under the next category; estimates only
+        upper = None if measured else next_category_if_close(peak_f, rule_set, unit="F")
+
+        peak_text.value = (
+            f"{peak_f:.1f} °F WBGT at {last_today['peak_time']:%I:%M %p} "
+            f"· {level_at(peak_f).title()}"
+            + (f" · could be {upper.title()}" if upper else "")
+        )
+
+        adjust_note.visible = measured
+
+        if measured:
+            adjust_text.value = (
+                f"Adjusted {offset_f:+.1f}°F to match your on-site reading "
+                f"from {time_text(reading['at'])}."
+            )
+
+            hourly = [
+                {
+                    **item,
+                    "wbgt": item["wbgt"] + offset_f * 5 / 9,
+                    "category": level_at(item["wbgt"] * 9 / 5 + 32 + offset_f)
+                }
+                for item in last_today["hourly"]
+            ]
+        else:
+            hourly = last_today["hourly"]
+
+        try:
+            chart_data = (
+                hourly,
+                last_today["thresholds_f"],
+                datetime.now(calculated_at.tzinfo)
+            )
+            draw_chart()
+            chart_box.visible = True
+
+        except (KeyError, ValueError):
+            chart_data = None
+            chart_box.visible = False
+
+        legend.visible = chart_box.visible
+
     #score tile, guidance and alerts from the reading or the estimate
     def show_current():
+        nonlocal art_ratio
+
         region = last_today["region"]
         measured = reading is not None
+
+        estimate_f = last_today["current_wbgt"] * 9 / 5 + 32
 
         if measured:
             wbgt_f = reading["value_f"]
             label = f"On-site reading @ {time_text(reading['at'])}"
         else:
-            wbgt_f = last_today["current_wbgt"] * 9 / 5 + 32
+            wbgt_f = estimate_f
             label = f"WBGT @ {time_text(calculated_at)}"
 
         info = get_category(wbgt_f, f"sports_{region}", unit="F")
@@ -436,7 +665,8 @@ def build_home(page, settings, on_emergency, simulator=()):
 
         guidance.value = info["guidance"]
         current_card.bgcolor = background
-        art.src, art.semantics_label = activity_art(level)
+        art.src, art.semantics_label, art_ratio = activity_art(level)
+        size_art()
 
         glass.bgcolor = ft.Colors.with_opacity(0.72, background)
         glass.border = ft.Border.all(
@@ -468,6 +698,8 @@ def build_home(page, settings, on_emergency, simulator=()):
                 f"Using your reading of {wbgt_f:.1f}°F from "
                 f"{time_text(reading['at'])} instead of the estimate."
             )
+
+        show_peak(wbgt_f - estimate_f)
 
     async def apply_reading(_event=None):
         nonlocal reading
@@ -514,7 +746,7 @@ def build_home(page, settings, on_emergency, simulator=()):
     clear_button.on_click = clear_reading
 
     async def refresh(_event=None):
-        nonlocal busy, chart_data, last_today, calculated_at, reading
+        nonlocal busy, last_today, calculated_at, reading
 
         if busy:
             return
@@ -533,10 +765,10 @@ def build_home(page, settings, on_emergency, simulator=()):
         page.update()
 
         try:
-            #fetch without freezing the app
-            today = await asyncio.to_thread(
-                fetch_today_summary,
-                settings.copy()
+            #fetch without freezing the app; conditions are optional
+            today, now_conditions = await asyncio.gather(
+                asyncio.to_thread(fetch_today_summary, settings.copy()),
+                load_conditions()
             )
 
             now = datetime.now(today["current_time"].tzinfo)
@@ -553,37 +785,16 @@ def build_home(page, settings, on_emergency, simulator=()):
                 )
 
             show_current()
+            show_conditions(now_conditions)
             current_card.visible = True
             reading_card.visible = True
-
-            #peak, flagged when it sits just under the next category
-            upper = next_category_if_close(
-                today["peak_wbgt"], f"sports_{today['region']}"
-            )
-
-            peak_text.value = (
-                f"{today['peak_wbgt'] * 9 / 5 + 32:.1f} °F WBGT "
-                f"at {today['peak_time']:%I:%M %p} "
-                f"· {today['peak_category'].title()}"
-                + (f" · could be {upper.title()}" if upper else "")
-            )
-
-            try:
-                chart_data = (today["hourly"], today["thresholds_f"], now)
-                draw_chart()
-                chart_box.visible = True
-
-            except (KeyError, ValueError):
-                chart_data = None
-                chart_box.visible = False
-
-            legend.visible = chart_box.visible
-
             peak_card.visible = True
 
             #sources
             source.value = (
                 f"{today['weather_source']} · Liljegren estimate"
+                + (" · Air quality: CAMS via Open-Meteo"
+                   if now_conditions and now_conditions["aqi"] is not None else "")
             )
 
             source.visible = True

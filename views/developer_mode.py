@@ -194,27 +194,27 @@ def build_developer_mode(page, settings, profile):
     intensity = ft.Slider(min=0, max=3, divisions=3, value=1)
 
     wbgt_block, wbgt_value, wbgt_bar = slider_block(
-        "SIMULATED WBGT",
+        "WBGT",
         wbgt,
         ["60°", "70°", "80°", "90°", "100°"],
         wbgt_gradient(settings["region"])
     )
 
     region_block, region_value, _ = slider_block(
-        "SIMULATED region",
+        "Region",
         region,
         [f"{number} {name}" for number, name in REGIONS],
         side_gradient(REGION_COLORS)
     )
 
     role_block, role_value, _ = slider_block(
-        "SIMULATED role",
+        "Role",
         role,
         [name for _, name in ROLES]
     )
 
     intensity_block, intensity_value, _ = slider_block(
-        "SIMULATED intensity",
+        "Intensity",
         intensity,
         [name for _, name in INTENSITY],
         side_gradient(INTENSITY_COLORS)
@@ -224,7 +224,7 @@ def build_developer_mode(page, settings, profile):
     result = ft.Column(
         controls=[
             ft.Text(
-                "Move a slider or tap Run simulation to see the result.",
+                "Move a slider to see the result.",
                 size=13,
                 color=MUTED
             )
@@ -420,13 +420,7 @@ def build_developer_mode(page, settings, profile):
                 extra = []
 
             result.controls = [
-                ft.Row(
-                    controls=[
-                        ft.Text("Result", size=16, weight=ft.FontWeight.BOLD, color=DARK),
-                        pill("SIMULATED", "#F1F5F9", MUTED, ft.Icons.SCIENCE_OUTLINED)
-                    ],
-                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-                ),
+                ft.Text("Result", size=16, weight=ft.FontWeight.BOLD, color=DARK),
                 heat_tile,
                 heat_scale(value, region_number),
                 section(ft.Icons.LIGHTBULB_OUTLINE, "What it means", verdict),
@@ -475,14 +469,6 @@ def build_developer_mode(page, settings, profile):
             region_block,
             role_block,
             intensity_block,
-            ft.Row(
-                controls=[
-                    ft.Button(
-                        content="Run simulation",
-                        on_click=calculate
-                    )
-                ]
-            ),
             result_box
         ],
         spacing=14,
