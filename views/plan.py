@@ -7,6 +7,7 @@ from datetime import datetime
 import flet as ft
 
 from core.plan import fetch_week_plan
+from core.rules import next_category_if_close
 from views.brand import brand_header
 from views.peak_chart import LINE_COLORS, ORDER, WINDOW_COLOR, build_peak_chart
 
@@ -166,7 +167,30 @@ def week_glance(week):
     )
 
 
-def day_card(page, day, is_today, now):
+def could_be_higher(day, region):
+    "note when the forecast peak sits just under the next category"
+
+    upper = next_category_if_close(day["peak_wbgt"], f"sports_{region}")
+
+    return ft.Container(
+        padding=ft.Padding.only(left=8, right=8),
+        visible=upper is not None,
+        content=ft.Row(
+            controls=[
+                ft.Icon(ft.Icons.TRENDING_UP, size=16, color="#C2410C"),
+                ft.Text(
+                    f"Could be {upper.title()}: peak is within about 1°F" if upper else "",
+                    size=13,
+                    weight=ft.FontWeight.W_600,
+                    color="#9A3412"
+                )
+            ],
+            spacing=6
+        )
+    )
+
+
+def day_card(page, day, is_today, now, region):
     "day name, peak chip, hourly chart and lower-heat window"
 
     peak_f = to_f(day["peak_wbgt"])
@@ -267,6 +291,7 @@ def day_card(page, day, is_today, now):
                         run_spacing=6
                     )
                 ),
+                could_be_higher(day, region),
                 chart_box,
                 ft.Container(
                     padding=ft.Padding.only(left=8, right=8),
@@ -328,7 +353,7 @@ def build_plan(page, settings):
 
             for index, day in enumerate(week):
                 rows.controls.append(
-                    day_card(page, day, index == 0, now)
+                    day_card(page, day, index == 0, now, settings["region"])
                 )
 
             footer.value = (

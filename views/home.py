@@ -6,6 +6,7 @@ from pathlib import Path
 
 import flet as ft
 
+from core.rules import get_category, next_category_if_close
 from core.today import fetch_today_summary
 from views.brand import brand_header
 from views.peak_chart import LINE_COLORS, ORDER, build_peak_chart
@@ -46,6 +47,10 @@ DANGER = ("orange", "red", "black")
 
 MUTED = "#64748B"
 DARK = "#172033"
+
+#on-site meter readings count for this long, and must look like real WBGT
+READING_MINUTES = 60
+READING_MIN_F, READING_MAX_F = 32, 120
 
 
 def activity_art(level):
@@ -103,6 +108,22 @@ def build_home(page, settings, on_emergency, simulator=()):
     )
 
     guidance = ft.Text("", size=15, color=DARK)
+
+    #estimate is close to the next category
+    near_text = ft.Text("", size=14, color="#9A3412", expand=True)
+
+    near_banner = ft.Container(
+        bgcolor="#FFF7ED",
+        border=ft.Border.all(1, "#FDBA74"),
+        border_radius=12,
+        padding=ft.Padding.symmetric(horizontal=12, vertical=10),
+        visible=False,
+        content=ft.Row(
+            controls=[ft.Icon(ft.Icons.TRENDING_UP, size=20, color="#C2410C"), near_text],
+            spacing=8,
+            vertical_alignment=ft.CrossAxisAlignment.START
+        )
+    )
 
     #activity picture with the score on top
     art_svg, art_label = activity_art("green")
@@ -171,6 +192,7 @@ def build_home(page, settings, on_emergency, simulator=()):
                     content=ft.Column(
                         controls=[
                             ft.Divider(),
+                            near_banner,
                             advice_label,
                             guidance
                         ],
@@ -180,6 +202,79 @@ def build_home(page, settings, on_emergency, simulator=()):
             ],
             spacing=0,
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH
+        )
+    )
+
+    #on-site WBGT meter reading that overrides the estimate
+    reading_field = ft.TextField(
+        label="WBGT °F",
+        hint_text="e.g. 84.5",
+        keyboard_type=ft.KeyboardType.NUMBER,
+        input_filter=ft.InputFilter(regex_string=r"[0-9.]", allow=True),
+        width=150,
+        dense=True
+    )
+
+    reading_message = ft.Text("", size=12, visible=False)
+
+    use_button = ft.FilledButton(
+        content="Use reading",
+        icon=ft.Icons.THERMOSTAT,
+        style=ft.ButtonStyle(bgcolor="#EA580C", color="#FFFFFF")
+    )
+
+    reading_input = ft.Column(
+        controls=[
+            ft.Text(
+                "Have a WBGT meter? Enter an on-site reading to use it instead "
+                f"of the estimate. It applies for {READING_MINUTES} minutes.",
+                size=13,
+                color=MUTED
+            ),
+            ft.Row(
+                controls=[reading_field, use_button],
+                spacing=10,
+                run_spacing=8,
+                wrap=True,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER
+            )
+        ],
+        spacing=10
+    )
+
+    reading_status = ft.Text("", size=14, color="#166534", expand=True)
+
+    clear_button = ft.TextButton(content="Clear", icon=ft.Icons.CLOSE)
+
+    reading_active = ft.Row(
+        controls=[
+            ft.Icon(ft.Icons.CHECK_CIRCLE, size=20, color="#166534"),
+            reading_status,
+            clear_button
+        ],
+        spacing=8,
+        visible=False
+    )
+
+    reading_card = ft.Container(
+        bgcolor="#FFFFFF",
+        border_radius=20,
+        padding=ft.Padding.only(left=22, top=18, right=22, bottom=18),
+        visible=False,
+        content=ft.Column(
+            controls=[
+                ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.THERMOSTAT, size=22, color="#EA580C"),
+                        ft.Text("On-site reading", size=19, weight=ft.FontWeight.BOLD, color=DARK)
+                    ],
+                    spacing=8
+                ),
+                reading_input,
+                reading_active,
+                reading_message
+            ],
+            spacing=10
         )
     )
 
@@ -298,8 +393,128 @@ def build_home(page, settings, on_emergency, simulator=()):
 
     busy = False
 
+    #latest forecast summary, when it was calculated, and any meter reading
+    last_today = None
+    calculated_at = None
+    reading = None
+
+    def time_text(when):
+        return f"{when:%I:%M %p}".lstrip("0")
+
+    def show_message(text, color=MUTED):
+        reading_message.value = text
+        reading_message.color = color
+        reading_message.visible = bool(text)
+
+    #score tile, guidance and alerts from the reading or the estimate
+    def show_current():
+        region = last_today["region"]
+        measured = reading is not None
+
+        if measured:
+            wbgt_f = reading["value_f"]
+            label = f"On-site reading @ {time_text(reading['at'])}"
+        else:
+            wbgt_f = last_today["current_wbgt"] * 9 / 5 + 32
+            label = f"WBGT @ {time_text(calculated_at)}"
+
+        info = get_category(wbgt_f, f"sports_{region}", unit="F")
+        level = info["category"]
+        background, ink = CARD_COLORS[level]
+
+        temperature.value = f"{wbgt_f:.1f}°F"
+        temperature.color = SCORE_COLORS[level]
+
+        #screen readers hear whether it is measured or estimated
+        temperature.semantics_label = (
+            f"{'Measured' if measured else 'Estimated'} WBGT {wbgt_f:.1f} "
+            f"degrees Fahrenheit, {level} heat category"
+        )
+
+        calculated.value = label
+        calculated.color = ink
+
+        guidance.value = info["guidance"]
+        current_card.bgcolor = background
+        art.src, art.semantics_label = activity_art(level)
+
+        glass.bgcolor = ft.Colors.with_opacity(0.72, background)
+        glass.border = ft.Border.all(
+            1, ft.Colors.with_opacity(0.6, "#FFFFFF")
+        )
+
+        #only estimates get the could-be-higher flag
+        upper = None if measured else next_category_if_close(
+            wbgt_f, f"sports_{region}", unit="F"
+        )
+
+        near_banner.visible = upper is not None
+
+        if upper:
+            near_text.value = (
+                f"Could be higher: this estimate is within about 1°F of "
+                f"{upper.title()}. Estimates can be off, so consider "
+                f"{upper.title()} precautions."
+            )
+
+        #emergency shortcut only for dangerous heat
+        emergency_button.visible = level in DANGER
+
+        reading_input.visible = not measured
+        reading_active.visible = measured
+
+        if measured:
+            reading_status.value = (
+                f"Using your reading of {wbgt_f:.1f}°F from "
+                f"{time_text(reading['at'])} instead of the estimate."
+            )
+
+    async def apply_reading(_event=None):
+        nonlocal reading
+
+        if last_today is None:
+            return
+
+        text = (reading_field.value or "").strip()
+
+        try:
+            value = float(text)
+
+            if not READING_MIN_F <= value <= READING_MAX_F:
+                raise ValueError()
+
+        except ValueError:
+            show_message(
+                f"Enter a WBGT between {READING_MIN_F} and {READING_MAX_F} °F.",
+                "#991B1B"
+            )
+            page.update()
+            return
+
+        reading = {
+            "value_f": value,
+            "at": datetime.now(last_today["current_time"].tzinfo)
+        }
+
+        reading_field.value = ""
+        show_message("")
+        show_current()
+        page.update()
+
+    def clear_reading(_event=None):
+        nonlocal reading
+
+        reading = None
+        show_message("Back to the estimate.")
+        show_current()
+        page.update()
+
+    use_button.on_click = apply_reading
+    reading_field.on_submit = apply_reading
+    clear_button.on_click = clear_reading
+
     async def refresh(_event=None):
-        nonlocal busy, chart_data
+        nonlocal busy, chart_data, last_today, calculated_at, reading
 
         if busy:
             return
@@ -310,6 +525,7 @@ def build_home(page, settings, on_emergency, simulator=()):
         status.value = ""
         error.visible = False
         current_card.visible = False
+        reading_card.visible = False
         peak_card.visible = False
         source.visible = False
         refresh_button.disabled = True
@@ -323,44 +539,33 @@ def build_home(page, settings, on_emergency, simulator=()):
                 settings.copy()
             )
 
-            level = today["category"]
-            background, ink = CARD_COLORS[level]
             now = datetime.now(today["current_time"].tzinfo)
-            wbgt_f = today["current_wbgt"] * 9 / 5 + 32
+            last_today, calculated_at = today, now
 
-            temperature.value = f"{wbgt_f:.1f}°F"
-            temperature.color = SCORE_COLORS[level]
+            show_message("")
 
-            #screen readers still hear that it is an estimate and its category
-            temperature.semantics_label = (
-                f"Estimated WBGT {wbgt_f:.1f} degrees Fahrenheit, "
-                f"{level} heat category"
-            )
+            #meter readings go stale
+            if reading and (now - reading["at"]).total_seconds() > READING_MINUTES * 60:
+                reading = None
+                show_message(
+                    f"Your on-site reading is over {READING_MINUTES} minutes old, "
+                    "so the estimate is back. Enter a new reading if you have one."
+                )
 
-            calculated.value = f"WBGT @ {now:%I:%M %p}".replace("@ 0", "@ ")
-            calculated.color = ink
-
-            guidance.value = today["guidance"]
-
-            current_card.bgcolor = background
-
-            art.src, art.semantics_label = activity_art(level)
-
-            glass.bgcolor = ft.Colors.with_opacity(0.72, background)
-            glass.border = ft.Border.all(
-                1, ft.Colors.with_opacity(0.6, "#FFFFFF")
-            )
-
+            show_current()
             current_card.visible = True
+            reading_card.visible = True
 
-            #emergency shortcut only for dangerous heat
-            emergency_button.visible = level in DANGER
+            #peak, flagged when it sits just under the next category
+            upper = next_category_if_close(
+                today["peak_wbgt"], f"sports_{today['region']}"
+            )
 
-            #peak
             peak_text.value = (
                 f"{today['peak_wbgt'] * 9 / 5 + 32:.1f} °F WBGT "
                 f"at {today['peak_time']:%I:%M %p} "
                 f"· {today['peak_category'].title()}"
+                + (f" · could be {upper.title()}" if upper else "")
             )
 
             try:
@@ -383,7 +588,7 @@ def build_home(page, settings, on_emergency, simulator=()):
 
             source.visible = True
             #zone of the chosen city, e.g. EST/EDT, CST/CDT, PST/PDT
-            status.value = f"Updated · times shown in {now.tzname() or 'local time'}"
+            status.value = f"Times shown in {now.tzname() or 'local time'}"
 
         except Exception as exc:
             error.value = f"Could not load forecast: {exc}"
@@ -414,11 +619,13 @@ def build_home(page, settings, on_emergency, simulator=()):
                 loading,
                 error,
                 current_card,
+                reading_card,
                 peak_card,
                 simulator_card,
                 source,
                 ft.Text(
-                    "Estimated WBGT, not an on-site measurement. "
+                    "Estimated WBGT, not an on-site measurement, unless you "
+                    "enter your own meter reading. "
                     "WBGT combines temperature, humidity, sun and wind. It uses a different scale than air temperature or a weather app's 'feels like', so don't compare them. "
                     "Follow official guidance "
                     "(NATA/KSI, OSHA/NIOSH).",

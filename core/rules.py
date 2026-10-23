@@ -110,3 +110,32 @@ def get_category(wbgt, rule_set, unit="C", clothing_adjustment_c=0):
         }
 
     raise ValueError(f"Unknown rule set: {rule_set}")
+
+
+def next_category_if_close(wbgt, rule_set, unit="C"):
+    """Name the next sports category when an estimate sits within the
+    caution margin below that category's minimum, otherwise None.
+
+    For example, in sports region 2 orange starts at 84.7 °F:
+        84.0 °F gives "orange" (could be higher)
+        82.0 °F gives None
+    """
+
+    if not rule_set.startswith("sports_"):
+        raise ValueError("ONLY SPORTS RULE SETS HAVE CATEGORY CUTOFFS")
+
+    #checks the reading and the region the same way as get_category
+    current = get_category(wbgt, rule_set, unit=unit)
+
+    sports = load_rules()["sports"]
+    margin = sports.get("caution_margin_f", 1.0)
+    wbgt_f = current["reading_c"] * 9 / 5 + 32
+
+    minimums = sports["regions"][rule_set.removeprefix("sports_")]["minimums"]
+
+    #minimums run from yellow up to black, so the first one above is next
+    for name, cutoff in minimums.items():
+        if cutoff > wbgt_f:
+            return name if cutoff - wbgt_f <= margin + 1e-9 else None
+
+    return None

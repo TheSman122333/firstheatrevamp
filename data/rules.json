@@ -47,7 +47,9 @@
         }
       }
     },
-    "boundary_note": "Published chart gaps are conservatively assigned to the more cautious category. Stored minimums are inclusive (>=), including black; the source prints black as greater than its cutoff."
+    "boundary_note": "Published chart gaps are conservatively assigned to the more cautious category. Stored minimums are inclusive (>=), including black; the source prints black as greater than its cutoff.",
+    "caution_margin_f": 1.0,
+    "caution_note": "Estimates within this many degrees F below the next category's minimum are flagged 'could be higher', because forecast-based WBGT can be off by about a degree. Measured on-site readings are not flagged."
   },
   "workers": {
     "name": "OSHA table adapted from NIOSH 2016 heat guidance",

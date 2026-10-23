@@ -7,6 +7,7 @@ import flet as ft
 
 from core.plan import fetch_week_plan
 from core.planner import project_week
+from core.rules import next_category_if_close
 from views.brand import brand_header
 from views.peak_chart import LINE_COLORS, WINDOW_COLOR
 from views.sliders import side_gradient, slider_block
@@ -333,23 +334,38 @@ def build_my_plan(page, settings, profile, on_save):
                                 color=DARK if limit else MUTED,
                                 no_wrap=True
                             ),
+                            #bar shows allowed time; a check on it means logged
                             ft.Container(
                                 width=22,
-                                height=max(6, 70 * min(share, 1)),
+                                height=max(22 if day["completed"] else 6, 70 * min(share, 1)),
                                 border_radius=ft.BorderRadius.only(top_left=6, top_right=6),
-                                bgcolor=LINE_COLORS[day["category"]] if limit else "#CBD5E1"
+                                bgcolor=LINE_COLORS[day["category"]] if limit else "#CBD5E1",
+                                alignment=ft.Alignment.TOP_CENTER,
+                                padding=ft.Padding.only(top=3),
+                                content=ft.Icon(
+                                    ft.Icons.CHECK_CIRCLE,
+                                    size=16,
+                                    color="#FFFFFF"
+                                ) if day["completed"] else None
                             ),
-                            ft.Text(
-                                "Today" if index == 0 else f"{day['date']:%a}",
-                                size=11,
-                                weight=ft.FontWeight.W_700 if chosen else None,
-                                color=BRAND_ORANGE if chosen else MUTED,
-                                no_wrap=True
-                            ),
-                            ft.Icon(
-                                ft.Icons.CHECK_CIRCLE,
-                                size=14,
-                                color=WINDOW_COLOR if day["completed"] else ft.Colors.TRANSPARENT
+                            ft.Column(
+                                controls=[
+                                    ft.Text(
+                                        "Today" if index == 0 else f"{day['date']:%a}",
+                                        size=11,
+                                        weight=ft.FontWeight.W_700 if chosen else None,
+                                        color=BRAND_ORANGE if chosen else MUTED,
+                                        no_wrap=True
+                                    ),
+                                    ft.Text(
+                                        f"{day['date'].month}/{day['date'].day}",
+                                        size=10,
+                                        color=BRAND_ORANGE if chosen else MUTED,
+                                        no_wrap=True
+                                    )
+                                ],
+                                spacing=0,
+                                horizontal_alignment=ft.CrossAxisAlignment.CENTER
                             )
                         ],
                         spacing=4,
@@ -457,6 +473,16 @@ def build_my_plan(page, settings, profile, on_save):
                 spacing=16
             )
         ]
+
+        #forecast peak just under the next category
+        upper = next_category_if_close(day["peak_wbgt"], f"sports_{settings['region']}")
+
+        if upper:
+            controls.append(alert(
+                "caution",
+                f"Could be higher: the peak is within about 1°F of "
+                f"{upper.title()}, so consider {upper.title()} precautions."
+            ))
 
         controls += day_alerts(day, profile["role"])
 
